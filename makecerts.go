@@ -200,8 +200,9 @@ func realMain() error {
 	duration := time.Duration(*validFor * 24 * 3600 * 1000 * 1000 * 1000)
 	notAfter := notBefore.Add(duration)
 
+	var caCertCert CertData
+
 	log.Println("Generating CA certificate.")
-	serialNumber := int64(1)
 
 	mustPrivateKeyFn := func() interface{} {
 		caCertKey, err := privateKeyFn()
@@ -211,9 +212,9 @@ func realMain() error {
 		return caCertKey
 	}
 
-	caCertCert := CertData{
+	caCertCert = CertData{
 		cert: func() x509.Certificate {
-			caCertCert := makeCert(serialNumber, *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, *caHost)
+			caCertCert := makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, *caHost)
 			caCertCert.IsCA = true
 			caCertCert.KeyUsage |= x509.KeyUsageCertSign
 			return caCertCert
@@ -237,12 +238,12 @@ func realMain() error {
 
 	log.Println("Generating certificates.")
 	certificates := []CertData{caCertCert}
-	for idx, host := range hostDescs {
+	for _, host := range hostDescs {
 		log.Println("Generating certificate for", host)
 
 		certificates = append(certificates,
 			CertData{
-				cert: makeCert(serialNumber+int64(idx), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, host),
+				cert: makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, host),
 				key:  mustPrivateKeyFn(),
 			},
 		)
