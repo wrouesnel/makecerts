@@ -1,6 +1,6 @@
-makecerts
-
-cover.test.out
+makecerts.x86_64
+.coverage
+cover.out
 
 *~
 *#

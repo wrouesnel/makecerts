@@ -24,14 +24,16 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
+// Version is set during build to the current git commitish
 var Version = "development"
 
+// PrivateKeyGenerator wraps the function signature for RSA and Elliptic key generators
 type PrivateKeyGenerator func() (interface{}, error)
 
 // commonNameToFilename converts a common name to a standard-ish output format.
 func commonNameToFilename(cn string) string {
-	outstr := strings.Replace(cn, ".", "_", 0)
-	outstr = strings.Replace(outstr, "*", "STAR", 0)
+	outstr := strings.Replace(cn, ".", "_", -1)
+	outstr = strings.Replace(outstr, "*", "STAR", -1)
 	return outstr
 }
 
@@ -41,6 +43,7 @@ type CertData struct {
 	key  interface{}
 }
 
+// EncodeToCerts signs the certificate and with the given CA ceertificate and returns the PEM encoded certs.
 func (cd *CertData) EncodeToCerts(signing CertData) ([]byte, []byte, error) {
 	derCABytes, err := x509.CreateCertificate(rand.Reader, &cd.cert, &signing.cert, publicKey(cd.key), signing.key)
 	if err != nil {
@@ -51,6 +54,7 @@ func (cd *CertData) EncodeToCerts(signing CertData) ([]byte, []byte, error) {
 	return caCertBytes, caKeyBytes, nil
 }
 
+// GetBasename returns the filename of the certificate.
 func (cd *CertData) GetBasename() string {
 	return commonNameToFilename(cd.cert.Subject.CommonName)
 }
@@ -126,9 +130,7 @@ func makeCert(serialNumber int64, cAttr string, oAttr string, ouAttr string, ema
 	}
 	if len(email) > 0 {
 		emails := strings.Split(email, ",")
-		for _, e := range emails {
-			template.EmailAddresses = append(template.EmailAddresses, e)
-		}
+		template.EmailAddresses = append(template.EmailAddresses, emails...)
 	}
 
 	return template
@@ -237,7 +239,7 @@ func realMain() error {
 
 		caCertCert = CertData{
 			cert: func() x509.Certificate {
-				caCertCert := makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, *caHost)
+				caCertCert := makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, *caHost)
 				caCertCert.IsCA = true
 				caCertCert.KeyUsage |= x509.KeyUsageCertSign
 				return caCertCert
@@ -267,7 +269,7 @@ func realMain() error {
 
 		certificates = append(certificates,
 			CertData{
-				cert: makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, host),
+				cert: makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, host),
 				key:  mustPrivateKeyFn(),
 			},
 		)

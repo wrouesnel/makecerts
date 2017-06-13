@@ -20,7 +20,7 @@ func (s *FunctionalSuite) TestCertificateGeneration(c *C) {
 	// Run a basic check
 	dir, err := ioutil.TempDir("", "")
 	c.Assert(err, IsNil)
-	defer os.RemoveAll(dir)
+	defer os.RemoveAll(dir) // nolint: errcheck
 
 	err = os.Chdir(dir)
 	c.Assert(err, IsNil)
