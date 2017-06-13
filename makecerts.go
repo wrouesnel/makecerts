@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"bufio"
+	"crypto/tls"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -157,9 +158,16 @@ func realMain() error {
 	certFileExt := app.Flag("cert-file-ext", "Certificate file extension to add to public keys").Default("crt").String()
 	keyFileExt := app.Flag("key-file-ext", "Certificate file extension to add to private keys").Default("pem").String()
 
+	caCertFile := app.Flag("load-ca-cert", "Load a CA certificate from a file rather then generating a new one (must specify load-ca-key").String()
+	caKeyFile := app.Flag("load-ca-key", "Load a CA private key from a file rather then generating a new one (must specify load-ca-cert)").String()
+
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	var err error
+	if *caCertFile != "" || *caKeyFile != "" {
+		if *caCertFile == "" || *caKeyFile == "" {
+			log.Panicln("Must specify both CA cert file and CA key file to use existing certificate authority.")
+		}
+	}
 
 	// Setup a new key generation interface
 	var privateKeyFn PrivateKeyGenerator
@@ -186,24 +194,6 @@ func realMain() error {
 		log.Panicln("Unrecognized elliptic curve:", *ecdsaCurve)
 	}
 
-	var notBefore time.Time
-	if len(*validFrom) == 0 {
-		notBefore = time.Now()
-	} else {
-		notBefore, err = time.Parse(time.UnixDate, *validFrom)
-		if err != nil {
-			log.Panicln("Failed to parse creation date: ", err)
-		}
-	}
-
-	// time.Duration takes nanoseconds    |--these are nsecs of a day--|
-	duration := time.Duration(*validFor * 24 * 3600 * 1000 * 1000 * 1000)
-	notAfter := notBefore.Add(duration)
-
-	var caCertCert CertData
-
-	log.Println("Generating CA certificate.")
-
 	mustPrivateKeyFn := func() interface{} {
 		caCertKey, err := privateKeyFn()
 		if err != nil {
@@ -212,14 +202,48 @@ func realMain() error {
 		return caCertKey
 	}
 
-	caCertCert = CertData{
-		cert: func() x509.Certificate {
-			caCertCert := makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, *caHost)
-			caCertCert.IsCA = true
-			caCertCert.KeyUsage |= x509.KeyUsageCertSign
-			return caCertCert
-		}(),
-		key: mustPrivateKeyFn(),
+	var caCertCert CertData
+
+	if *caCertFile != "" && *caKeyFile != "" {
+		log.Println("Loading CA certificate from file:", *caCertFile)
+		log.Println("Loading CA key from file:", *caKeyFile)
+
+		cert, err := tls.LoadX509KeyPair(*caCertFile, *caKeyFile)
+		if err != nil {
+			log.Panicln("Error loading X509 CA keypair:", err)
+		}
+
+		caCertCert.cert = *cert.Leaf
+		caCertCert.key = cert.PrivateKey
+
+	} else {
+		var err error
+
+		var notBefore time.Time
+		if len(*validFrom) == 0 {
+			notBefore = time.Now()
+		} else {
+			notBefore, err = time.Parse(time.UnixDate, *validFrom)
+			if err != nil {
+				log.Panicln("Failed to parse creation date: ", err)
+			}
+		}
+
+		// time.Duration takes nanoseconds    |--these are nsecs of a day--|
+		duration := time.Duration(*validFor * 24 * 3600 * 1000 * 1000 * 1000)
+		notAfter := notBefore.Add(duration)
+
+		log.Println("Generating CA certificate.")
+
+		caCertCert = CertData{
+			cert: func() x509.Certificate {
+				caCertCert := makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, *caHost)
+				caCertCert.IsCA = true
+				caCertCert.KeyUsage |= x509.KeyUsageCertSign
+				return caCertCert
+			}(),
+			key: mustPrivateKeyFn(),
+		}
 	}
 
 	hostDescs := []string{}
@@ -243,7 +267,7 @@ func realMain() error {
 
 		certificates = append(certificates,
 			CertData{
-				cert: makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, host),
+				cert: makeCert(int64(time.Now().UnixNano()), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, host),
 				key:  mustPrivateKeyFn(),
 			},
 		)
