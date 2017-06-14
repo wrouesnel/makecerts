@@ -40,8 +40,9 @@ func commonNameToFilename(cn string) string {
 
 // CertData holds the tuple of certificate data
 type CertData struct {
-	cert x509.Certificate
-	key  interface{}
+	cert       x509.Certificate
+	key        interface{}
+	outputName string
 }
 
 // EncodeToCerts signs the certificate and with the given CA ceertificate and returns the PEM encoded certs.
@@ -57,6 +58,9 @@ func (cd *CertData) EncodeToCerts(signing CertData) ([]byte, []byte, error) {
 
 // GetBasename returns the filename of the certificate.
 func (cd *CertData) GetBasename() string {
+	if cd.outputName != "" {
+		return cd.outputName
+	}
 	return commonNameToFilename(cd.cert.Subject.CommonName)
 }
 
@@ -141,7 +145,7 @@ func realMain() error {
 	app := kingpin.New("makecerts", "Quickly generate a CA and certificates for a list of hosts.")
 	app.Version(Version)
 
-	hosts := app.Arg("hosts", "List of comma-separated strings marking hostnames and IPs to generate certificates for. If blank, reads from stdin.").Strings()
+	hosts := app.Arg("hosts", "List of comma-separated strings marking hostnames and IPs to generate certificates for. If blank, reads from stdin. Use = to specify output filename as <filename>=<hosts>").Strings()
 
 	caHost := app.Flag("CN", "CA Certificate Common Name, as in 'example.com'").String()
 	cAttr := app.Flag("C", "Certificate attribute: Country").Default("Test Country").String()
@@ -278,19 +282,29 @@ func realMain() error {
 	certificates := make([]CertData, len(hostDescs)+1)
 	certificates[0] = caCertCert
 	certificateWaitGroup := &sync.WaitGroup{}
-	for idx, host := range hostDescs {
+	for idx, hostDesc := range hostDescs {
 		certificateWaitGroup.Add(1)
-		go func(cidx int, targetHost string) {
+		go func(cidx int, hostDesc string) {
 			defer certificateWaitGroup.Done()
-			log.Println("Generating certificate for", targetHost)
+
+			outputName := ""
+			hostnames := hostDesc
+			outNamesTuple := strings.SplitN(hostDesc, "=", 2)
+			if len(outNamesTuple) > 1 {
+				outputName = outNamesTuple[0]
+				hostnames = outNamesTuple[1]
+			}
+
+			log.Println("Generating certificate for", hostnames)
 
 			certData := CertData{
-				cert: makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, targetHost),
-				key:  mustPrivateKeyFn(),
+				cert:       makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, hostnames),
+				key:        mustPrivateKeyFn(),
+				outputName: outputName,
 			}
 			certificates[cidx] = certData
-			log.Println("Finished generating certificate for", targetHost)
-		}(idx+1, host)
+			log.Println("Finished generating certificate for", hostDesc)
+		}(idx+1, hostDesc)
 	}
 	// Wait for certificates to be generated...
 	certificateWaitGroup.Wait()
@@ -303,8 +317,27 @@ func realMain() error {
 			log.Panicln("Error while encoding CA certificate.")
 		}
 
-		caCertFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, caCertCert.GetBasename(), *nameSuffix, *certFileExt)
-		caKeyFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, caCertCert.GetBasename(), *nameSuffix, *keyFileExt)
+		nameFmtString := "%s"
+		if *namePrefix != "" {
+			nameFmtString = *namePrefix + "." + nameFmtString
+		}
+
+		if *nameSuffix != "" {
+			nameFmtString = nameFmtString + "." + *nameSuffix
+		}
+
+		certFileFmtString := nameFmtString
+		keyFileFmtString := nameFmtString
+		if *certFileExt != "" {
+			certFileFmtString = certFileFmtString + "." + *certFileExt
+		}
+
+		if *keyFileExt != "" {
+			keyFileFmtString = keyFileFmtString + "." + *keyFileExt
+		}
+
+		caCertFilename := fmt.Sprintf(certFileFmtString, caCertCert.GetBasename())
+		caKeyFilename := fmt.Sprintf(keyFileFmtString, caCertCert.GetBasename())
 
 		log.Printf("Outputting CA: cert=%s key=%s", caCertFilename, caKeyFilename)
 		if err := ioutil.WriteFile(caCertFilename, caCertBytes, os.FileMode(0644)); err != nil {
@@ -324,7 +357,7 @@ func realMain() error {
 
 		nameFmtString := "%s"
 		if *namePrefix != "" {
-			nameFmtString = *nameSuffix + "." + nameFmtString
+			nameFmtString = *namePrefix + "." + nameFmtString
 		}
 
 		if *nameSuffix != "" {
