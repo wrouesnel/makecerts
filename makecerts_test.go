@@ -36,6 +36,18 @@ func (s *FunctionalSuite) TestCertificateGeneration(c *C) {
 	err = realMain()
 	c.Assert(err, IsNil)
 
+	// Test generating additional certificates using the CA
+	os.Args = []string{"makecerts",
+		"--load-ca-cert=rootCA.crt",
+		"--load-ca-key=rootCA.pem",
+		"example5.com",
+		"example6.com",
+	}
+
+	err = realMain()
+	c.Assert(err, IsNil)
+
+	// Test the elliptic curve generation
 	for _, curve := range []string{"P256", "P384", "P521"} {
 		os.Args = []string{"makecerts",
 			fmt.Sprintf("--ecdsa-curve=%s", curve),

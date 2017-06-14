@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"sync"
 )
 
 // Version is set during build to the current git commitish
@@ -215,6 +216,17 @@ func realMain() error {
 			log.Panicln("Error loading X509 CA keypair:", err)
 		}
 
+		caCerts := []*x509.Certificate{}
+		for _, certData := range cert.Certificate {
+			parsedCertificate, err := x509.ParseCertificate(certData)
+			if err != nil {
+				log.Panicln("Could not parse certificate of loaded CA:", err)
+			}
+			caCerts = append(caCerts, parsedCertificate)
+		}
+
+		cert.Leaf = caCerts[0]
+
 		caCertCert.cert = *cert.Leaf
 		caCertCert.key = cert.PrivateKey
 
@@ -263,17 +275,25 @@ func realMain() error {
 	}
 
 	log.Println("Generating certificates.")
-	certificates := []CertData{caCertCert}
-	for _, host := range hostDescs {
-		log.Println("Generating certificate for", host)
+	certificates := make([]CertData, len(hostDescs)+1)
+	certificates[0] = caCertCert
+	certificateWaitGroup := &sync.WaitGroup{}
+	for idx, host := range hostDescs {
+		certificateWaitGroup.Add(1)
+		go func(cidx int, targetHost string) {
+			defer certificateWaitGroup.Done()
+			log.Println("Generating certificate for", targetHost)
 
-		certificates = append(certificates,
-			CertData{
-				cert: makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, host),
+			certData := CertData{
+				cert: makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, targetHost),
 				key:  mustPrivateKeyFn(),
-			},
-		)
+			}
+			certificates[cidx] = certData
+			log.Println("Finished generating certificate for", targetHost)
+		}(idx+1, host)
 	}
+	// Wait for certificates to be generated...
+	certificateWaitGroup.Wait()
 
 	// Sign certificate
 	{
@@ -302,8 +322,27 @@ func realMain() error {
 			log.Panicln("Error while encoding certificate")
 		}
 
-		certFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, certData.GetBasename(), *nameSuffix, *certFileExt)
-		keyFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, certData.GetBasename(), *nameSuffix, *keyFileExt)
+		nameFmtString := "%s"
+		if *namePrefix != "" {
+			nameFmtString = *nameSuffix + "." + nameFmtString
+		}
+
+		if *nameSuffix != "" {
+			nameFmtString = nameFmtString + "." + *nameSuffix
+		}
+
+		certFileFmtString := nameFmtString
+		keyFileFmtString := nameFmtString
+		if *certFileExt != "" {
+			certFileFmtString = certFileFmtString + "." + *certFileExt
+		}
+
+		if *keyFileExt != "" {
+			keyFileFmtString = keyFileFmtString + "." + *keyFileExt
+		}
+
+		certFilename := fmt.Sprintf(certFileFmtString, certData.GetBasename())
+		keyFilename := fmt.Sprintf(keyFileFmtString, certData.GetBasename())
 
 		log.Printf("Outputting: cert=%s key=%s", certFilename, keyFilename)
 		if err := ioutil.WriteFile(certFilename, certBytes, os.FileMode(0644)); err != nil {
