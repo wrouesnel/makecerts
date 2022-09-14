@@ -1,5 +1,7 @@
-[![Build Status](https://travis-ci.org/wrouesnel/makecerts.svg?branch=master)](https://travis-ci.org/wrouesnel/makecerts)
-[![Coverage Status](https://coveralls.io/repos/github/wrouesnel/makecerts/badge.svg?branch=master)](https://coveralls.io/github/wrouesnel/makecerts?branch=master)
+[![Build and Test](https://github.com/wrouesnel/poller_exporter/actions/workflows/integration.yml/badge.svg)](https://github.com/wrouesnel/makecerts/actions/workflows/integration.yml)
+[![Release](https://github.com/wrouesnel/poller_exporter/actions/workflows/release.yml/badge.svg)](https://github.com/wrouesnel/makecerts/actions/workflows/release.yml)
+[![Container Build](https://github.com/wrouesnel/poller_exporter/actions/workflows/container.yml/badge.svg)](https://github.com/wrouesnel/makecerts/actions/workflows/container.yml)
+[![Coverage Status](https://coveralls.io/repos/github/wrouesnel/poller_exporter/badge.svg?branch=main)](https://coveralls.io/github/wrouesnel/makecerts?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/wrouesnel/makecerts)](https://goreportcard.com/report/github.com/wrouesnel/makecerts)
 
 # makecerts #
