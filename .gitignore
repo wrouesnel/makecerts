@@ -1,9 +1,9 @@
-makecerts.x86_64
-.coverage
-cover.out
-
-*~
-*#
-*pem
 .idea
-
+node_modules
+/poller_exporter
+/bin
+/.bin
+/.coverage
+/release
+/.cover.out
+/test-configs
