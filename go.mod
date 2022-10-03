@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/integralist/go-findroot v0.0.0-20160518114804-ac90681525dc
-	github.com/magefile/mage v1.13.0
+	github.com/magefile/mage v1.14.0
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/pkg/errors v0.9.1
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
