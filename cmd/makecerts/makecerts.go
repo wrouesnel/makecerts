@@ -258,11 +258,11 @@ func realMain() error {
 	var caCertificateFilename string
 	var caKeyFilename string
 
-	if !strings.HasSuffix(CLI.NamePrefix, ".") {
+	if !strings.HasSuffix(CLI.NamePrefix, ".") && CLI.NamePrefix != "" {
 		CLI.NamePrefix = fmt.Sprintf("%s.", CLI.NamePrefix)
 	}
 
-	if !strings.HasPrefix(CLI.NameSuffix, ".") {
+	if !strings.HasPrefix(CLI.NameSuffix, ".") && CLI.NameSuffix != "" {
 		CLI.NameSuffix = fmt.Sprintf(".%s", CLI.NameSuffix)
 	}
 
