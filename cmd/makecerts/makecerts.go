@@ -42,6 +42,7 @@ type PrivateKeyGenerator func() (interface{}, error)
 // commonNameToFilename converts a common name to a standard-ish output format.
 func commonNameToFilename(cn string) string {
 	outstr := strings.Replace(cn, ".", "_", -1)
+	outstr = strings.Replace(cn, " ", "", -1)
 	outstr = strings.Replace(outstr, "*", "STAR", -1)
 	return outstr
 }
@@ -256,6 +257,14 @@ func realMain() error {
 
 	var caCertificateFilename string
 	var caKeyFilename string
+
+	if !strings.HasSuffix(CLI.NamePrefix, ".") {
+		CLI.NamePrefix = fmt.Sprintf("%s.", CLI.NamePrefix)
+	}
+
+	if !strings.HasPrefix(CLI.NameSuffix, ".") {
+		CLI.NameSuffix = fmt.Sprintf(".%s", CLI.NameSuffix)
+	}
 
 	if CLI.CACertName != "" {
 		caCertificateFilename = CLI.CACertName
