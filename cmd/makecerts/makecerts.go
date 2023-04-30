@@ -156,7 +156,7 @@ var CLI struct {
 	OrganizationalUnit string        `help:"Certificate attribute: Organizational Unit" default:"NoOrgUnit"`
 	Email              []string      `help:"Email addresses to be added to the certificate"`
 	StartDate          time.Time     `help:"Creation date formatted as YYYY-MM-DD HH:MM:SS "`
-	Duration           time.Duration `help:"Duration in days that certificate is valid for" default:"36135d"`
+	Duration           time.Duration `help:"Duration in days that certificate is valid for" default:"867240h"`
 
 	CommonSans []string `help:"List of subject alt-names to add to all generated certificates"`
 
