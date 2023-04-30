@@ -171,8 +171,13 @@ var CLI struct {
 	CertFileExt string `help:"Certificate file extension to add to public keys" default:"crt"`
 	KeyFileExt  string `help:"Certificate file extension to add to private keys" default:"pem"`
 
-	UseCACert string `help:"Load a CA certificate from a file rather then generating a new one"`
-	UseCAKey  string `help:"Load a CA private key from a file rather then generating a new one"`
+	CACertName string `help:"CA Certificate Filename"`
+	CAKeyName  string `help:"CA Key Filename"`
+
+	ForceCaGenerate   bool `help:"Overwrite existing CA certificates if found"`
+	RequireExistingCa bool `help:"Require existing CA certificates to exist"`
+
+	NoStdin bool `help:"Don't read hostnames from stdin'"`
 
 	HostSpec []string `help:"Hostname to generate a certificate for"`
 }
@@ -249,18 +254,44 @@ func realMain() error {
 
 	var caCertCert CertData
 
-	if CLI.UseCACert != "" || CLI.UseCAKey != "" {
-		log.Info("Loading CA certificate from file:", zap.String("public_key", CLI.UseCACert), zap.String("private_key", CLI.UseCAKey))
+	var caCertificateFilename string
+	var caKeyFilename string
 
-		cert, err := tls.LoadX509KeyPair(CLI.UseCACert, CLI.UseCAKey)
-		if err != nil {
-			log.Fatal("Error loading X509 CA keypair", zap.Error(err))
-		}
-
-		caCertCert.cert = *cert.Leaf
-		caCertCert.key = cert.PrivateKey
-
+	if CLI.CACertName != "" {
+		caCertificateFilename = CLI.CACertName
 	} else {
+		caCertificateFilename = fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, commonNameToFilename(CLI.CommonName), CLI.NameSuffix, CLI.CertFileExt)
+	}
+
+	if CLI.CAKeyName != "" {
+		caKeyFilename = CLI.CAKeyName
+	} else {
+		caKeyFilename = fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, commonNameToFilename(CLI.CommonName), CLI.NameSuffix, CLI.KeyFileExt)
+	}
+
+	caLog := log.With(zap.String("ca_certificate_filename", caCertificateFilename), zap.String("ca_key_filename", caKeyFilename))
+	caLog.Info("CA Certificate filenames")
+
+	shouldGenerate := false
+
+	cert, err := tls.LoadX509KeyPair(CLI.CACertName, CLI.CAKeyName)
+	if err == nil {
+		caLog.Info("Successfully loaded existing certificates from previous session")
+	} else {
+		caLog.Info("Could not load existing certificates")
+		if CLI.RequireExistingCa {
+			caLog.Error("--require-existing-ca but could not load certificate", zap.Error(err))
+			return errors.New("--require-existing-ca but could not load certificate")
+		}
+		shouldGenerate = true
+	}
+
+	if CLI.ForceCaGenerate {
+		caLog.Info("--force-ca-generate - overwriting any existing files")
+		shouldGenerate = true
+	}
+
+	if shouldGenerate {
 		log.Info("Generating a new CA certificate")
 
 		var notBefore time.Time
@@ -296,11 +327,14 @@ func realMain() error {
 			}(),
 			key: mustPrivateKeyFn(),
 		}
+	} else {
+		caCertCert.cert = *cert.Leaf
+		caCertCert.key = cert.PrivateKey
 	}
 
 	hostDescs := []string{}
 
-	if len(CLI.HostSpec) == 0 {
+	if len(CLI.HostSpec) == 0 && !CLI.NoStdin {
 		log.Info("Waiting for host descriptions on stdin")
 
 		rdr := bufio.NewScanner(os.Stdin)
@@ -325,29 +359,26 @@ func realMain() error {
 		)
 	}
 
-	// Sign certificate
-	{
-		log.Info("Signing CA certificate")
+	if shouldGenerate {
+		caLog.Info("Outputting new CA certificate")
 		caCertBytes, caKeyBytes, err := caCertCert.EncodeToCerts(caCertCert)
 		if err != nil {
 			log.Error("Error while encoding CA certificate.")
 			return errors.New("error while encoding CA certificate")
 		}
 
-		caCertFilename := fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, caCertCert.GetBasename(), CLI.NameSuffix, CLI.CertFileExt)
-		caKeyFilename := fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, caCertCert.GetBasename(), CLI.NameSuffix, CLI.KeyFileExt)
-
-		log.Info("Outputting CA", zap.String("certificate_filename", caCertFilename), zap.String("key_filename", caKeyFilename))
-		if err := ioutil.WriteFile(caCertFilename, caCertBytes, os.FileMode(0644)); err != nil {
-			log.Error("Failed writing file", zap.String("filename", caCertFilename), zap.Error(err))
+		caLog.Info("Outputting CA")
+		if err := os.WriteFile(caCertificateFilename, caCertBytes, os.FileMode(0644)); err != nil {
+			caLog.Error("Failed writing file", zap.String("filename", caCertificateFilename), zap.Error(err))
 			return errors.New("error writing file")
 		}
-		if err := ioutil.WriteFile(caKeyFilename, caKeyBytes, os.FileMode(0600)); err != nil {
-			log.Error("Failed writing file", zap.String("filename", caKeyFilename), zap.Error(err))
+		if err := os.WriteFile(caKeyFilename, caKeyBytes, os.FileMode(0600)); err != nil {
+			caLog.Error("Failed writing file", zap.String("filename", caKeyFilename), zap.Error(err))
 			return errors.New("error writing file")
 		}
 	}
 
+	log.Info("Outputing requested certificates")
 	for _, certData := range certificates {
 		log.Info("Signing certificate", zap.String("common_name", certData.cert.Subject.CommonName))
 		certBytes, keyBytes, err := certData.EncodeToCerts(caCertCert)
@@ -369,7 +400,6 @@ func realMain() error {
 			return err
 		}
 	}
-
-	log.Info("Files written succesfully. Exiting.")
+	log.Info("Certificate generation finished")
 	return nil
 }
