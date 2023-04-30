@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -16,13 +17,20 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
+
+	"github.com/pkg/errors"
+
+	"github.com/alecthomas/kong"
+	"go.uber.org/zap/zapcore"
 
 	"bufio"
 	"crypto/tls"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"go.uber.org/zap"
 )
 
 // Version is set during build to the current git commitish.
@@ -90,7 +98,7 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 }
 
 // makeCert generates a certificate for the given hosts.
-func makeCert(serialNumber int64, cAttr string, oAttr string, ouAttr string, email string, notBefore time.Time, notAfter time.Time, hosts string) x509.Certificate {
+func makeCert(serialNumber int64, cAttr string, oAttr string, ouAttr string, emails []string, notBefore time.Time, notAfter time.Time, hosts string) x509.Certificate {
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(serialNumber),
 		Subject: pkix.Name{
@@ -129,56 +137,90 @@ func makeCert(serialNumber int64, cAttr string, oAttr string, ouAttr string, ema
 			template.DNSNames = append(template.DNSNames, host)
 		}
 	}
-	if len(email) > 0 {
-		emails := strings.Split(email, ",")
+	if len(emails) > 0 {
 		template.EmailAddresses = append(template.EmailAddresses, emails...)
 	}
 
 	return template
 }
 
+//nolint:gochecknoglobals
+var CLI struct {
+	Version   kong.VersionFlag `help:"Show version number"`
+	LogLevel  string           `help:"Logging Level" enum:"debug,info,warning,error" default:"info"`
+	LogFormat string           `help:"Logging format" enum:"console,json" default:"console"`
+
+	CommonName         string        `help:"CA Certificate Common Name, as in 'example.com'" default:"localhost"`
+	Country            string        `help:"Certificate attribute: Country" default:"NoCountry"`
+	Organization       string        `help:"Certificate attribute: Organization" default:"NoOrg"`
+	OrganizationalUnit string        `help:"Certificate attribute: Organizational Unit" default:"NoOrgUnit"`
+	Email              []string      `help:"Email addresses to be added to the certificate"`
+	StartDate          time.Time     `help:"Creation date formatted as YYYY-MM-DD HH:MM:SS "`
+	Duration           time.Duration `help:"Duration in days that certificate is valid for" default:"36135d"`
+
+	CommonSANs []string `help:"List of subject alt-names to add to all generated certificates"`
+
+	RsaBits    int    `help:"Size of RSA key to generate. Ignored if --ecdsa-curve is set"`
+	EcdsaCurve string `help:"ECDSA curve to use to generate a key. Valid values are P256, P384, P521" enum:"P256,P384,P521" default:"P256"`
+
+	CaSuffix string `help:"Suffix to add to the CA certificates" default:"ca"`
+
+	NamePrefix string `help:"Filename prefix to add to certificates. A dot separator is added automatically."`
+	NameSuffix string `help:"Filename suffix to add to certificates before extension. A dot separator is added automatically."`
+
+	CertFileExt string `help:"Certificate file extension to add to public keys" default:"crt"`
+	KeyFileExt  string `help:"Certificate file extension to add to private keys" default:"pem"`
+
+	UseCACert string `help:"Load a CA certificate from a file rather then generating a new one"`
+	UseCAKey  string `help:"Load a CA private key from a file rather then generating a new one"`
+
+	HostSpec []string `help:"Hostname to generate a certificate for"`
+}
+
 func realMain() error {
-	app := kingpin.New("makecerts", "Quickly generate a CA and certificates for a list of hosts.")
-	app.Version(Version)
-
-	hosts := app.Arg("hosts", "List of comma-separated strings marking hostnames and IPs to generate certificates for. If blank, reads from stdin.").Strings()
-
-	caHost := app.Flag("CN", "CA Certificate Common Name, as in 'example.com'").String()
-	cAttr := app.Flag("C", "Certificate attribute: Country").Default("Test Country").String()
-	oAttr := app.Flag("O", "Certificate attribute: Organization").Default("Test Org").String()
-	ouAttr := app.Flag("OU", "Certificate attribute: Organizational Unit").Default("Test OU").String()
-	email := app.Flag("emails", "Comma-separated emails to be added to the certificates").Default("test@test").String()
-
-	validFrom := app.Flag("start-date", "Creation date formatted as Jan 1 15:04:05 2011").Default(time.Now().Format(time.UnixDate)).String()
-	validFor := app.Flag("duration", "Duration in days that certificate is valid for").Default("365.25").Float64()
-
-	rsaBits := app.Flag("rsa-bits", "Size of RSA key to generate. Ignored if --ecdsa-curve is set").Default("4096").Int()
-	ecdsaCurve := app.Flag("ecdsa-curve", "ECDSA curve to use to generate a key. Valid values are P256, P384, P521").Default("").Enum("P256", "P384", "P521", "")
-
-	namePrefix := app.Flag("name-prefix", "Filename prefix to add to certificates").String()
-	nameSuffix := app.Flag("name-suffix", "Filename suffix to add to certificates before extension").String()
-
-	certFileExt := app.Flag("cert-file-ext", "Certificate file extension to add to public keys").Default("crt").String()
-	keyFileExt := app.Flag("key-file-ext", "Certificate file extension to add to private keys").Default("pem").String()
-
-	caCertFile := app.Flag("load-ca-cert", "Load a CA certificate from a file rather then generating a new one (must specify load-ca-key").String()
-	caKeyFile := app.Flag("load-ca-key", "Load a CA private key from a file rather then generating a new one (must specify load-ca-cert)").String()
-
-	kingpin.MustParse(app.Parse(os.Args[1:]))
-
-	if *caCertFile != "" || *caKeyFile != "" {
-		if *caCertFile == "" || *caKeyFile == "" {
-			log.Panicln("Must specify both CA cert file and CA key file to use existing certificate authority.")
-		}
+	vars := kong.Vars{}
+	vars["version"] = Version
+	kongParser, err := kong.New(&CLI, vars)
+	if err != nil {
+		panic(err)
 	}
+
+	_, err = kongParser.Parse(os.Args[1:])
+	kongParser.FatalIfErrorf(err)
+
+	// Configure logging
+	logConfig := zap.NewProductionConfig()
+	logConfig.Encoding = CLI.LogFormat
+	var logLevel zapcore.Level
+	if err := logLevel.UnmarshalText([]byte(CLI.LogLevel)); err != nil {
+		panic(err)
+	}
+	logConfig.Level = zap.NewAtomicLevelAt(logLevel)
+
+	log, err := logConfig.Build()
+	if err != nil {
+		panic(err)
+	}
+
+	// Replace the global logger to enable logging
+	zap.ReplaceGlobals(log)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	_, cancelFn := context.WithCancel(context.Background())
+	go func() {
+		sig := <-sigCh
+		log.Info("Caught signal - exiting", zap.String("signal", sig.String()))
+		cancelFn()
+	}()
 
 	// Setup a new key generation interface
 	var privateKeyFn PrivateKeyGenerator
 
-	switch *ecdsaCurve {
+	switch CLI.EcdsaCurve {
 	case "":
 		privateKeyFn = func() (interface{}, error) {
-			return rsa.GenerateKey(rand.Reader, *rsaBits)
+			return rsa.GenerateKey(rand.Reader, CLI.RsaBits)
 		}
 		// P224 curve is disabled because Red Hat disable it.
 	case "P256":
@@ -194,53 +236,60 @@ func realMain() error {
 			return ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 		}
 	default:
-		log.Panicln("Unrecognized elliptic curve:", *ecdsaCurve)
+		log.Fatal("Unrecognized elliptic curve:", zap.String("ecdsa_curvse", CLI.EcdsaCurve))
 	}
 
 	mustPrivateKeyFn := func() interface{} {
 		caCertKey, err := privateKeyFn()
 		if err != nil {
-			log.Panicln("Could not generate private key:", err)
+			log.Fatal("Could not generate private key", zap.Error(err))
 		}
 		return caCertKey
 	}
 
 	var caCertCert CertData
 
-	if *caCertFile != "" && *caKeyFile != "" {
-		log.Println("Loading CA certificate from file:", *caCertFile)
-		log.Println("Loading CA key from file:", *caKeyFile)
+	if CLI.UseCACert != "" || CLI.UseCAKey != "" {
+		log.Info("Loading CA certificate from file:", zap.String("public_key", CLI.UseCACert), zap.String("private_key", CLI.UseCAKey))
 
-		cert, err := tls.LoadX509KeyPair(*caCertFile, *caKeyFile)
+		cert, err := tls.LoadX509KeyPair(CLI.UseCACert, CLI.UseCAKey)
 		if err != nil {
-			log.Panicln("Error loading X509 CA keypair:", err)
+			log.Fatal("Error loading X509 CA keypair", zap.Error(err))
 		}
 
 		caCertCert.cert = *cert.Leaf
 		caCertCert.key = cert.PrivateKey
 
 	} else {
-		var err error
+		log.Info("Generating a new CA certificate")
 
 		var notBefore time.Time
-		if len(*validFrom) == 0 {
+		if CLI.StartDate.IsZero() {
 			notBefore = time.Now()
+			log.Info("No start date specified, using now", zap.Time("start_date", notBefore))
 		} else {
-			notBefore, err = time.Parse(time.UnixDate, *validFrom)
-			if err != nil {
-				log.Panicln("Failed to parse creation date: ", err)
-			}
+			notBefore = CLI.StartDate
+			log.Info("Start date specified", zap.Time("start_date", notBefore))
 		}
 
 		// time.Duration takes nanoseconds    |--these are nsecs of a day--|
-		duration := time.Duration(*validFor * 24 * 3600 * 1000 * 1000 * 1000)
+		duration := CLI.Duration
 		notAfter := notBefore.Add(duration)
+		log.Info("Expiry set", zap.Time("end_date", notAfter), zap.Duration("duration", duration))
 
-		log.Println("Generating CA certificate.")
+		log.Info("Generating CA Certificate",
+			zap.String("CommonName", CLI.CommonName),
+			zap.String("Country", CLI.Country),
+			zap.String("Organization", CLI.Organization),
+			zap.String("OrganizationalUnit", CLI.OrganizationalUnit),
+			zap.Strings("Email", CLI.Email),
+			zap.Time("not_before", notBefore),
+			zap.Time("not_after", notAfter),
+		)
 
 		caCertCert = CertData{
 			cert: func() x509.Certificate {
-				caCertCert := makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, notBefore, notAfter, *caHost)
+				caCertCert := makeCert(time.Now().UnixNano(), CLI.Country, CLI.Organization, CLI.OrganizationalUnit, CLI.Email, notBefore, notAfter, CLI.CommonName)
 				caCertCert.IsCA = true
 				caCertCert.KeyUsage |= x509.KeyUsageCertSign
 				return caCertCert
@@ -251,8 +300,8 @@ func realMain() error {
 
 	hostDescs := []string{}
 
-	if len(*hosts) == 0 {
-		log.Println("Waiting for host descriptions on stdin")
+	if len(CLI.HostSpec) == 0 {
+		log.Info("Waiting for host descriptions on stdin")
 
 		rdr := bufio.NewScanner(os.Stdin)
 		for rdr.Scan() {
@@ -260,17 +309,17 @@ func realMain() error {
 			hostDescs = append(hostDescs, line)
 		}
 	} else {
-		hostDescs = *hosts
+		hostDescs = CLI.HostSpec
 	}
 
-	log.Println("Generating certificates.")
+	log.Info("Generating certificates.")
 	certificates := []CertData{caCertCert}
 	for _, host := range hostDescs {
-		log.Println("Generating certificate for", host)
+		log.Info("Generating certificate", zap.String("hostname", host))
 
 		certificates = append(certificates,
 			CertData{
-				cert: makeCert(time.Now().UnixNano(), *cAttr, *oAttr, *ouAttr, *email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, host),
+				cert: makeCert(time.Now().UnixNano(), CLI.Country, CLI.Organization, CLI.OrganizationalUnit, CLI.Email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, host),
 				key:  mustPrivateKeyFn(),
 			},
 		)
@@ -278,43 +327,49 @@ func realMain() error {
 
 	// Sign certificate
 	{
-		log.Println("Signing CA certificate")
+		log.Info("Signing CA certificate")
 		caCertBytes, caKeyBytes, err := caCertCert.EncodeToCerts(caCertCert)
 		if err != nil {
-			log.Panicln("Error while encoding CA certificate.")
+			log.Error("Error while encoding CA certificate.")
+			return errors.New("error while encoding CA certificate")
 		}
 
-		caCertFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, caCertCert.GetBasename(), *nameSuffix, *certFileExt)
-		caKeyFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, caCertCert.GetBasename(), *nameSuffix, *keyFileExt)
+		caCertFilename := fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, caCertCert.GetBasename(), CLI.NameSuffix, CLI.CertFileExt)
+		caKeyFilename := fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, caCertCert.GetBasename(), CLI.NameSuffix, CLI.KeyFileExt)
 
-		log.Printf("Outputting CA: cert=%s key=%s", caCertFilename, caKeyFilename)
+		log.Info("Outputting CA", zap.String("certificate_filename", caCertFilename), zap.String("key_filename", caKeyFilename))
 		if err := ioutil.WriteFile(caCertFilename, caCertBytes, os.FileMode(0644)); err != nil {
-			log.Panicln("Failed writing file:", caCertFilename, err)
+			log.Error("Failed writing file", zap.String("filename", caCertFilename), zap.Error(err))
+			return errors.New("error writing file")
 		}
 		if err := ioutil.WriteFile(caKeyFilename, caKeyBytes, os.FileMode(0600)); err != nil {
-			log.Panicln("Failed writing file:", caCertFilename, err)
+			log.Error("Failed writing file", zap.String("filename", caKeyFilename), zap.Error(err))
+			return errors.New("error writing file")
 		}
 	}
 
 	for _, certData := range certificates {
-		log.Println("Signing certificate:", certData.cert.Subject.CommonName)
+		log.Info("Signing certificate", zap.String("common_name", certData.cert.Subject.CommonName))
 		certBytes, keyBytes, err := certData.EncodeToCerts(caCertCert)
 		if err != nil {
-			log.Panicln("Error while encoding certificate")
+			log.Error("Error while encoding certificate", zap.Error(err))
+			return errors.Wrap(err, "error wile encoding certificate")
 		}
 
-		certFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, certData.GetBasename(), *nameSuffix, *certFileExt)
-		keyFilename := fmt.Sprintf("%s%s%s.%s", *namePrefix, certData.GetBasename(), *nameSuffix, *keyFileExt)
+		certFilename := fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, certData.GetBasename(), CLI.NameSuffix, CLI.CertFileExt)
+		keyFilename := fmt.Sprintf("%s%s%s.%s", CLI.NamePrefix, certData.GetBasename(), CLI.NameSuffix, CLI.KeyFileExt)
 
-		log.Printf("Outputting: cert=%s key=%s", certFilename, keyFilename)
+		log.Info("Outputting certificate", zap.String("certificate_filename", certFilename), zap.String("key_filename", keyFilename))
 		if err := ioutil.WriteFile(certFilename, certBytes, os.FileMode(0644)); err != nil {
-			log.Panicln("Failed writing file:", certFilename, err)
+			log.Error("Failed writing file:", zap.String("certificate_filename", certFilename), zap.Error(err))
+			return err
 		}
 		if err := ioutil.WriteFile(keyFilename, keyBytes, os.FileMode(0600)); err != nil {
-			log.Panicln("Failed writing file:", keyFilename, err)
+			log.Error("Failed writing file:", zap.String("key_filename", keyFilename), zap.Error(err))
+			return err
 		}
 	}
 
-	log.Println("Files written succesfully. Exiting.")
+	log.Info("Files written succesfully. Exiting.")
 	return nil
 }
