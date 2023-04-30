@@ -158,7 +158,7 @@ var CLI struct {
 	StartDate          time.Time     `help:"Creation date formatted as YYYY-MM-DD HH:MM:SS "`
 	Duration           time.Duration `help:"Duration in days that certificate is valid for" default:"36135d"`
 
-	CommonSANs []string `help:"List of subject alt-names to add to all generated certificates"`
+	CommonSans []string `help:"List of subject alt-names to add to all generated certificates"`
 
 	RsaBits    int    `help:"Size of RSA key to generate. Ignored if --ecdsa-curve is set"`
 	EcdsaCurve string `help:"ECDSA curve to use to generate a key. Valid values are P256, P384, P521" enum:"P256,P384,P521" default:"P256"`
