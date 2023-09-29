@@ -27,11 +27,11 @@ func (s *FunctionalSuite) TestCertificateGeneration(c *C) {
 	c.Assert(err, IsNil)
 
 	os.Args = []string{"makecerts",
-		"--CN=rootCA",
-		"example0.com",
-		"example1.com",
-		"example2.com",
-		"example3.com",
+		"--common-name=rootCA",
+		"--host", "example0.com",
+		"--host", "example1.com",
+		"--host", "example2.com",
+		"--host", "example3.com",
 	}
 
 	err = realMain()
@@ -40,11 +40,11 @@ func (s *FunctionalSuite) TestCertificateGeneration(c *C) {
 	for _, curve := range []string{"P256", "P384", "P521"} {
 		os.Args = []string{"makecerts",
 			fmt.Sprintf("--ecdsa-curve=%s", curve),
-			"--CN=ecdsaCA",
-			"ec-example0.com",
-			"ec-example1.com",
-			"ec-example2.com",
-			"ec-example3.com",
+			"--common-name=ecdsaCA",
+			"--host", "ec-example0.com",
+			"--host", "ec-example1.com",
+			"--host", "ec-example2.com",
+			"--host", "ec-example3.com",
 		}
 		err := realMain()
 		c.Assert(err, IsNil)
