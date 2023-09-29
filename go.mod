@@ -3,12 +3,12 @@ module github.com/wrouesnel/makecerts
 go 1.21
 
 require (
-	github.com/alecthomas/kong v0.7.1
+	github.com/alecthomas/kong v0.8.0
 	github.com/integralist/go-findroot v0.0.0-20160518114804-ac90681525dc
-	github.com/magefile/mage v1.13.0
+	github.com/magefile/mage v1.15.0
 	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/pkg/errors v0.9.1
-	go.uber.org/zap v1.24.0
+	go.uber.org/zap v1.26.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/yaml.v3 v3.0.1
@@ -45,16 +45,16 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.8.0 // indirect
-	github.com/ulikunitz/xz v0.5.10 // indirect
+	github.com/stretchr/testify v1.8.1 // indirect
+	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	go.uber.org/atomic v1.10.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
+	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/term v0.12.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
