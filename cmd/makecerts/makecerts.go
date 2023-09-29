@@ -37,8 +37,8 @@ var ErrMultipleCSRPerFile = errors.New("Multiple certificate requests found in o
 var ErrNoCSRFound = errors.New("No CSR request found in specified file")
 var ErrNilCSR = errors.New("nil CSR passed to loadCSR")
 
-const CertPermissions = syscall.S_IRUSR | syscall.S_IWUSR | syscall.S_IRGRP | syscall.S_IROTH //nolint:nosnakecase
-const KeyPermissions = syscall.S_IRUSR | syscall.S_IWUSR                                      //nolint:nosnakecase
+const CertPermissions = 0644
+const KeyPermissions = 0600
 
 // Version is set during build to the current git commitish.
 var Version = "development" //nolint:gochecknoglobals
