@@ -11,12 +11,12 @@ import (
 func main() {
 	defer func() {
 		err := recover()
-		fmt.Println(err)
+		fmt.Println(err) //nolint:forbidigo
 		os.Exit(1)
 	}()
 
 	if err := realMain(); err != nil {
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic
 	}
 	os.Exit(0)
 }
