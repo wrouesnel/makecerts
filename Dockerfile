@@ -1,6 +1,6 @@
-# Dockerfile for building the containerized poller_exporter
-# golang:1.18 as of 2022-07-04
-FROM golang@sha256:1bbb02af44e5324a6eabe502b6a928d368977225c0255bc9aca4a734145f86e1 AS build
+# Dockerfile for building the containerized makecerts
+# golang:1.21 as of 2023-09-29
+FROM golang@sha256:19600fdcae402165dcdab18cb9649540bde6be7274dedb5d205b2f84029fe909 AS build
 
 MAINTAINER William Rouesnel <wrouesnel@wrouesnel.com>
 EXPOSE 9115
@@ -15,9 +15,7 @@ FROM scratch
 MAINTAINER Will Rouesnel <wrouesnel@wrouesnel.com>
 
 ENV PATH=/bin
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs
-COPY --from=build /workdir/poller_exporter /bin/poller_exporter
-COPY ./poller_exporter.yml /poller_exporter.yml
+COPY --from=build /workdir/makecerts /bin/makecerts
 
-ENTRYPOINT ["/bin/poller_exporter"]
-CMD ["--log-format=json"]
+ENTRYPOINT ["/bin/makecerts"]
+
