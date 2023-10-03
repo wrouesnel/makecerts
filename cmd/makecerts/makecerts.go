@@ -220,7 +220,7 @@ var CLI struct {
 	Organization       string        `help:"Certificate attribute: Organization" default:"NoOrg"`
 	OrganizationalUnit string        `help:"Certificate attribute: Organizational Unit" default:"NoOrgUnit"`
 	Email              []string      `help:"Email addresses to be added to the certificate"`
-	StartDate          time.Time     `help:"Creation date formatted as YYYY-MM-DD HH:MM:SS "`
+	StartDate          time.Time     `help:"Creation date formatted as YYYY-MM-DD HH:MM:SS"`
 	Duration           time.Duration `help:"Duration in days that certificate is valid for" default:"867240h"`
 
 	CommonSans []string `help:"List of subject alt-names to add to all generated certificates"`
@@ -375,6 +375,101 @@ func realMain() error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
 	reqDescs := CLI.Request
 	signDescs := CLI.Sign
 
+	if len(hostDescs) > 0 || len(signDescs) > 0 || CLI.GenerateCA { //nolint:nestif
+		caLog := log.With(zap.String("ca_certificate_filename", caCertificateFilename), zap.String("ca_key_filename", caKeyFilename))
+		caLog.Info("CA Certificate filenames")
+
+		shouldGenerate := false
+
+		cert, err := tls.LoadX509KeyPair(caCertificateFilename, caKeyFilename)
+		if err == nil {
+			caLog.Info("Successfully loaded existing certificates from previous session")
+		} else {
+			caLog.Info("Could not load existing certificates")
+			if CLI.RequireExistingCa {
+				caLog.Error("--require-existing-ca but could not load certificate", zap.Error(err))
+				return errors.New("--require-existing-ca but could not load certificate")
+			}
+			shouldGenerate = true
+		}
+
+		if CLI.ForceCaGenerate {
+			caLog.Info("--force-ca-generate - overwriting any existing files")
+			shouldGenerate = true
+		}
+
+		if shouldGenerate {
+			log.Info("Generating a new CA certificate")
+
+			var notBefore time.Time
+			if CLI.StartDate.IsZero() {
+				notBefore = time.Now()
+				log.Info("No start date specified, using now", zap.Time("start_date", notBefore))
+			} else {
+				notBefore = CLI.StartDate
+				log.Info("Start date specified", zap.Time("start_date", notBefore))
+			}
+
+			// time.Duration takes nanoseconds    |--these are nsecs of a day--|
+			duration := CLI.Duration
+			notAfter := notBefore.Add(duration)
+			log.Info("Expiry set", zap.Time("end_date", notAfter), zap.Duration("duration", duration))
+
+			log.Info("Generating CA Certificate",
+				zap.String("CommonName", CLI.CommonName),
+				zap.String("Country", CLI.Country),
+				zap.String("Organization", CLI.Organization),
+				zap.String("OrganizationalUnit", CLI.OrganizationalUnit),
+				zap.Strings("Email", CLI.Email),
+				zap.Time("not_before", notBefore),
+				zap.Time("not_after", notAfter),
+			)
+
+			caCertCert = CertData{
+				cert: func() x509.Certificate {
+					caCertCert := makeCert(time.Now().UnixNano(), CLI.Country, CLI.Organization, CLI.OrganizationalUnit, CLI.Email, notBefore, notAfter, CLI.CommonName)
+					caCertCert.IsCA = true
+					caCertCert.KeyUsage |= x509.KeyUsageCertSign
+					return caCertCert
+				}(),
+				key: mustPrivateKeyFn(),
+			}
+		} else {
+			parsedCert, err := x509.ParseCertificate(cert.Certificate[0])
+			if err != nil {
+				log.Error("Failed to parse certificate from CA certificate file", zap.Error(err))
+				return errors.Wrap(err, "Failed to parse CA certificate from file")
+			}
+
+			if !parsedCert.IsCA {
+				log.Error("Loaded certificate is not a CA certificate. Cannot use for issuing.")
+				return ErrNotCertificateAuthority
+			}
+
+			caCertCert.cert = *parsedCert
+			caCertCert.key = cert.PrivateKey
+		}
+
+		if shouldGenerate {
+			caLog.Info("Outputting new CA certificate")
+			caCertBytes, caKeyBytes, err := caCertCert.EncodeToCerts(caCertCert)
+			if err != nil {
+				log.Error("Error while encoding CA certificate.")
+				return errors.New("error while encoding CA certificate")
+			}
+
+			caLog.Info("Outputting CA")
+			if err := os.WriteFile(caCertificateFilename, caCertBytes, os.FileMode(CertPermissions)); err != nil {
+				caLog.Error("Failed writing file", zap.String("filename", caCertificateFilename), zap.Error(err))
+				return errors.New("error writing file")
+			}
+			if err := os.WriteFile(caKeyFilename, caKeyBytes, os.FileMode(KeyPermissions)); err != nil {
+				caLog.Error("Failed writing file", zap.String("filename", caKeyFilename), zap.Error(err))
+				return errors.New("error writing file")
+			}
+		}
+	}
+
 	certificates := []CertData{}
 	certRequests := []CertData{}
 	signRequests := []CertData{}
@@ -395,9 +490,22 @@ func realMain() error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
 	for _, host := range reqDescs {
 		log.Info("Generating certificate signing request", zap.String("hostname", host))
 
+		var notBefore time.Time
+		if CLI.StartDate.IsZero() {
+			notBefore = time.Now()
+			log.Info("No start date specified, using now", zap.Time("start_date", notBefore))
+		} else {
+			notBefore = CLI.StartDate
+			log.Info("Start date specified", zap.Time("start_date", notBefore))
+		}
+
+		// time.Duration takes nanoseconds    |--these are nsecs of a day--|
+		duration := CLI.Duration
+		notAfter := notBefore.Add(duration)
+
 		certRequests = append(certRequests,
 			CertData{
-				cert: makeCert(time.Now().UnixNano(), CLI.Country, CLI.Organization, CLI.OrganizationalUnit, CLI.Email, caCertCert.cert.NotBefore, caCertCert.cert.NotAfter, host),
+				cert: makeCert(time.Now().UnixNano(), CLI.Country, CLI.Organization, CLI.OrganizationalUnit, CLI.Email, notBefore, notAfter, host),
 				key:  mustPrivateKeyFn(),
 			},
 		)
@@ -457,103 +565,6 @@ func realMain() error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
 				key:  cert,
 			},
 		)
-	}
-
-	if len(certificates) > 0 || len(signRequests) > 0 || CLI.GenerateCA { //nolint:nestif
-		caLog := log.With(zap.String("ca_certificate_filename", caCertificateFilename), zap.String("ca_key_filename", caKeyFilename))
-		caLog.Info("CA Certificate filenames")
-
-		shouldGenerate := false
-
-		cert, err := tls.LoadX509KeyPair(caCertificateFilename, caKeyFilename)
-		if err == nil {
-			caLog.Info("Successfully loaded existing certificates from previous session")
-		} else {
-			caLog.Info("Could not load existing certificates")
-			if CLI.RequireExistingCa {
-				caLog.Error("--require-existing-ca but could not load certificate", zap.Error(err))
-				return errors.New("--require-existing-ca but could not load certificate")
-			}
-			shouldGenerate = true
-		}
-
-		if CLI.ForceCaGenerate {
-			caLog.Info("--force-ca-generate - overwriting any existing files")
-			shouldGenerate = true
-		}
-
-		if shouldGenerate {
-			log.Info("Generating a new CA certificate")
-
-			var notBefore time.Time
-			if CLI.StartDate.IsZero() {
-				notBefore = time.Now()
-				log.Info("No start date specified, using now", zap.Time("start_date", notBefore))
-			} else {
-				notBefore = CLI.StartDate
-				log.Info("Start date specified", zap.Time("start_date", notBefore))
-			}
-
-			// time.Duration takes nanoseconds    |--these are nsecs of a day--|
-			duration := CLI.Duration
-			notAfter := notBefore.Add(duration)
-			log.Info("Expiry set", zap.Time("end_date", notAfter), zap.Duration("duration", duration))
-
-			log.Info("Generating CA Certificate",
-				zap.String("CommonName", CLI.CommonName),
-				zap.String("Country", CLI.Country),
-				zap.String("Organization", CLI.Organization),
-				zap.String("OrganizationalUnit", CLI.OrganizationalUnit),
-				zap.Strings("Email", CLI.Email),
-				zap.Time("not_before", notBefore),
-				zap.Time("not_after", notAfter),
-			)
-
-			caCertCert = CertData{
-				cert: func() x509.Certificate {
-					caCertCert := makeCert(time.Now().UnixNano(), CLI.Country, CLI.Organization, CLI.OrganizationalUnit, CLI.Email, notBefore, notAfter, CLI.CommonName)
-					caCertCert.IsCA = true
-					caCertCert.KeyUsage |= x509.KeyUsageCertSign
-					return caCertCert
-				}(),
-				key: mustPrivateKeyFn(),
-			}
-			// Insert the certificate at the head of the generation queue
-			certificates = append([]CertData{caCertCert}, certificates...)
-		} else {
-			parsedCert, err := x509.ParseCertificate(cert.Certificate[0])
-			if err != nil {
-				log.Error("Failed to parse certificate from CA certificate file", zap.Error(err))
-				return errors.Wrap(err, "Failed to parse CA certificate from file")
-			}
-
-			if !parsedCert.IsCA {
-				log.Error("Loaded certificate is not a CA certificate. Cannot use for issuing.")
-				return ErrNotCertificateAuthority
-			}
-
-			caCertCert.cert = *parsedCert
-			caCertCert.key = cert.PrivateKey
-		}
-
-		if shouldGenerate {
-			caLog.Info("Outputting new CA certificate")
-			caCertBytes, caKeyBytes, err := caCertCert.EncodeToCerts(caCertCert)
-			if err != nil {
-				log.Error("Error while encoding CA certificate.")
-				return errors.New("error while encoding CA certificate")
-			}
-
-			caLog.Info("Outputting CA")
-			if err := os.WriteFile(caCertificateFilename, caCertBytes, os.FileMode(CertPermissions)); err != nil {
-				caLog.Error("Failed writing file", zap.String("filename", caCertificateFilename), zap.Error(err))
-				return errors.New("error writing file")
-			}
-			if err := os.WriteFile(caKeyFilename, caKeyBytes, os.FileMode(KeyPermissions)); err != nil {
-				caLog.Error("Failed writing file", zap.String("filename", caKeyFilename), zap.Error(err))
-				return errors.New("error writing file")
-			}
-		}
 	}
 
 	log.Info("Output certificates and keys")
