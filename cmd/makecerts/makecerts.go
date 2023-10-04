@@ -137,7 +137,7 @@ func pemBlockForKey(priv interface{}) *pem.Block {
 }
 
 // loadCSR generates a certificate from a CertificateRequest.
-func loadCSR(csr *x509.CertificateRequest, serialNumber int64) (x509.Certificate, error) {
+func loadCSR(csr *x509.CertificateRequest, serialNumber int64, notBefore time.Time, notAfter time.Time) (x509.Certificate, error) {
 	if csr == nil {
 		return x509.Certificate{}, ErrNilCSR
 	}
@@ -153,6 +153,8 @@ func loadCSR(csr *x509.CertificateRequest, serialNumber int64) (x509.Certificate
 		EmailAddresses:     csr.EmailAddresses,
 		IPAddresses:        csr.IPAddresses,
 		URIs:               csr.URIs,
+		NotBefore:          notBefore,
+		NotAfter:           notAfter,
 	}
 	return template, nil
 }
@@ -558,7 +560,20 @@ func realMain() error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
 			return ErrNoCSRFound
 		}
 
-		cert, err := loadCSR(csrReq, time.Now().UnixNano())
+		var notBefore time.Time
+		if CLI.StartDate.IsZero() {
+			notBefore = time.Now()
+			log.Info("No start date specified, using now", zap.Time("start_date", notBefore))
+		} else {
+			notBefore = CLI.StartDate
+			log.Info("Start date specified", zap.Time("start_date", notBefore))
+		}
+
+		// time.Duration takes nanoseconds    |--these are nsecs of a day--|
+		duration := CLI.Duration
+		notAfter := notBefore.Add(duration)
+
+		cert, err := loadCSR(csrReq, time.Now().UnixNano(), notBefore, notAfter)
 		if err != nil {
 			return err
 		}
