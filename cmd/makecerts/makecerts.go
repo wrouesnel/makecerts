@@ -211,7 +211,7 @@ func makeCert(serialNumber int64, cAttr string, oAttr string, ouAttr string, ema
 
 //nolint:gochecknoglobals
 var CLI struct {
-	Version   kong.VersionFlag `help:"Show version number"`
+	Version   kong.VersionFlag `help:"Show version number" env:"-"`
 	LogLevel  string           `help:"Logging Level" enum:"debug,info,warning,error" default:"info"`
 	LogFormat string           `help:"Logging format" enum:"console,json" default:"console"`
 
@@ -225,7 +225,7 @@ var CLI struct {
 
 	CommonSans []string `help:"List of subject alt-names to add to all generated certificates"`
 
-	RsaBits    int    `help:"Size of RSA key to generate. Ignored if --ecdsa-curve is set"`
+	RsaBits    int    `help:"Size of RSA key to generate. When set, an RSA key is generated instead of an ECDSA."`
 	EcdsaCurve string `help:"ECDSA curve to use to generate a key. Valid values are P256, P384, P521" enum:"P256,P384,P521" default:"P256"`
 
 	CaSuffix string `help:"Suffix to add to the CA certificates" default:"ca"`
@@ -254,7 +254,7 @@ var CLI struct {
 func realMain() error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
 	vars := kong.Vars{}
 	vars["version"] = Version
-	kongParser, err := kong.New(&CLI, vars)
+	kongParser, err := kong.New(&CLI, vars, kong.DefaultEnvars("MAKECERTS"))
 	if err != nil {
 		panic(err)
 	}
@@ -299,26 +299,30 @@ func realMain() error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
 	// Setup a new key generation interface
 	var privateKeyFn PrivateKeyGenerator
 
-	switch CLI.EcdsaCurve {
-	case "":
+	if CLI.RsaBits > 0 {
+		log.Info("RSA key generation", zap.Int("rsa_bitsize", CLI.RsaBits))
 		privateKeyFn = func() (interface{}, error) {
 			return rsa.GenerateKey(rand.Reader, CLI.RsaBits) //nolint:wrapcheck
 		}
+	} else {
+		log.Info("ECDSA key generation")
+		switch CLI.EcdsaCurve {
 		// P224 curve is disabled because Red Hat disable it.
-	case "P256":
-		privateKeyFn = func() (interface{}, error) {
-			return ecdsa.GenerateKey(elliptic.P256(), rand.Reader) //nolint:wrapcheck
+		case "P256":
+			privateKeyFn = func() (interface{}, error) {
+				return ecdsa.GenerateKey(elliptic.P256(), rand.Reader) //nolint:wrapcheck
+			}
+		case "P384":
+			privateKeyFn = func() (interface{}, error) {
+				return ecdsa.GenerateKey(elliptic.P384(), rand.Reader) //nolint:wrapcheck
+			}
+		case "P521":
+			privateKeyFn = func() (interface{}, error) {
+				return ecdsa.GenerateKey(elliptic.P521(), rand.Reader) //nolint:wrapcheck
+			}
+		default:
+			log.Fatal("Unrecognized elliptic curve:", zap.String("ecdsa_curvse", CLI.EcdsaCurve))
 		}
-	case "P384":
-		privateKeyFn = func() (interface{}, error) {
-			return ecdsa.GenerateKey(elliptic.P384(), rand.Reader) //nolint:wrapcheck
-		}
-	case "P521":
-		privateKeyFn = func() (interface{}, error) {
-			return ecdsa.GenerateKey(elliptic.P521(), rand.Reader) //nolint:wrapcheck
-		}
-	default:
-		log.Fatal("Unrecognized elliptic curve:", zap.String("ecdsa_curvse", CLI.EcdsaCurve))
 	}
 
 	mustPrivateKeyFn := func() interface{} {
