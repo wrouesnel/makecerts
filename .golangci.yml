@@ -54,6 +54,7 @@ issues:
         - perfsprint
         - var-declaration
         - revive
+        - mnd
 
 linters-settings:
 #  depguard:

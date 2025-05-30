@@ -52,7 +52,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: release
+          name: release-${{ strategy.job-index }}
           path: release/*
 
   release:
@@ -63,7 +63,8 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release
+          pattern: release-*
+          merge-multiple: true
           path: release
 
       - name: Release

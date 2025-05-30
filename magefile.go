@@ -752,8 +752,13 @@ func GithubReleaseMatrix() error {
 		output = append(output, platform.String())
 	}
 	jsonData := must(json.Marshal(output))
-	fmt.Printf("::set-output name=release-matrix::%s\n", string(jsonData))
-	return nil
+
+	stateFile := os.Getenv("GITHUB_OUTPUT")
+	if stateFile == "" {
+		return errors.New("GITHUB_OUTPUT environment variable is not set")
+	}
+	err := os.WriteFile(stateFile, []byte(fmt.Sprintf("release-matrix=%s\n", string(jsonData))), os.FileMode(0644))
+	return err
 }
 
 // GoGenerate runs go generate.
