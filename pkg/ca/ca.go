@@ -62,7 +62,7 @@ func HandleCACertificate(fs afero.Fs, filenameConfig models.CertificateFilenameC
 
 	certFilename := filenameConfig.CACertName
 	keyFilename := filenameConfig.CAKeyName
-	reqFilename := filenameConfig.CACSRName
+	reqFilename := filenameConfig.CaCSRName
 
 	if certFilename == "" {
 		certFilename = fmt.Sprintf("%s.%s", certBasename, filenameConfig.CertFileExt)

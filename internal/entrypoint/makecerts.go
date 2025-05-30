@@ -41,43 +41,57 @@ func MakeCerts(ctx context.Context) error {
 
 	var err error
 
+	var lineEmitterFn func(fn func(line string) error) error
+	if len(CLI.Commands) == 0 && !CLI.NoStdin {
+		l.Debug("Reading from stdin")
+		lineEmitterFn = func(fn func(line string) error) error {
+			bio := bufio.NewScanner(ctxstdio.Stdin(ctx))
+			for bio.Scan() {
+				line := strings.TrimSpace(bio.Text())
+				err := fn(line)
+				if err != nil {
+					return err
+				}
+				select {
+				case <-ctx.Done():
+					l.Warn("context finished: aborting")
+					return ctx.Err()
+				default:
+				}
+			}
+			return nil
+		}
+	} else {
+		l.Debug("Reading from command line")
+		lineEmitterFn = func(fn func(line string) error) error {
+			for _, line := range CLI.Commands {
+				command := strings.TrimSpace(line)
+				err := fn(command)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+
 	l.Debug("Validating Commands")
 	var commandErr error
 	var currentOp CertOperations
 	ops := map[CertOperations][]certspec.CertSpecification{}
 
-	if len(CLI.Commands) == 0 && !CLI.NoStdin {
-		l.Debug("Reading from stdin")
-		bio := bufio.NewScanner(ctxstdio.Stdin(ctx))
-		for bio.Scan() {
-			line := bio.Text()
-			if !currentOp.IsValid() {
-				currentOp, err = ParseCertOperations(line)
-				if err != nil {
-					l.Error("Invalid certificate operation", zap.String("operation", line))
-					return err
-				}
-				continue
-			}
+	commandErr = lineEmitterFn(func(command string) error {
+		if command == "--" {
+			currentOp = ""
+			return nil
 		}
-		select {
-		case <-ctx.Done():
-			l.Warn("context finished: aborting")
-			return ctx.Err()
-		default:
-		}
-	} else if len(CLI.Commands) > 0 {
-		l.Debug("Reading from command line")
-	}
-
-	for _, command := range CLI.Commands {
 		if !currentOp.IsValid() {
 			currentOp, err = ParseCertOperations(command)
 			if err != nil {
 				l.Error("Invalid certificate operation", zap.String("operation", command))
 				return err
 			}
-			continue
+			return nil
 		}
 
 		spec := certspec.CertSpecification{}
@@ -86,7 +100,8 @@ func MakeCerts(ctx context.Context) error {
 			commandErr = ErrCertificateSpecification
 		}
 		ops[currentOp] = append(ops[currentOp], spec)
-	}
+		return nil
+	})
 
 	if commandErr != nil {
 		return commandErr

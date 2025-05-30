@@ -4,7 +4,7 @@ package models
 type CertificateFilenameConfig struct {
 	CACertName string `help:"CA Certificate Filename"`
 	CAKeyName  string `help:"CA Key Filename"`
-	CACSRName  string `help:"CA CSR Filename"`
+	CaCSRName  string `help:"CA CSR Filename"`
 
 	CaPrefix string `default:""   help:"Prefix to be added to the filename of CA certificates and CSRS"`
 	CaSuffix string `default:"ca" help:"Suffix to be added to filename of CA certificates and CSRs"`

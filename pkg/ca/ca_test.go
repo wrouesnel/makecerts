@@ -40,7 +40,7 @@ func (s *CaSuite) TestHandleCACertificate(c *C) {
 	fsConfig := models.CertificateFilenameConfig{
 		CACertName:     "",
 		CAKeyName:      "",
-		CACSRName:      "",
+		CaCSRName:      "",
 		CaPrefix:       "",
 		CaSuffix:       "ca",
 		NamePrefix:     "",

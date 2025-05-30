@@ -32,8 +32,67 @@ var ErrNilCSR = errors.New("nil CSR passed to loadCSR")
 const CertPermissions = 0644
 const KeyPermissions = 0600
 
-//nolint:gochecknoglobals
-var CLI struct {
+const longHelp = `
+
+<commands> is a list of commands. 
+
+A command is one of certificate, request or sign followed by a list of <spec>s.
+
+Multiple commands can be issued, separated by "--" to start a new command list.
+
+If no commands are given, commands are read from standard input in the same 
+format, separated by newlines.
+
+<spec> takes the form <subject>[,<subject>...][?options]
+e.g.
+ localhost?name=Example Common Name&usage=digitalsignature&extusage=serverauth
+
+<subject> may be a DNS name, IP address, email or URI. The correct SAN will be
+inferred from the content.
+
+Options may be:
+ usage      Key Usage 
+            Default: digitalsignature
+            Comma separated list of: 
+             digitalsignature
+             contentcommitment
+             keyencipherment
+             dataencipherment
+             keyagreement
+             certsign
+             crlsign
+             encipheronly
+             decipheronly
+ extusage   Extended Key Usage
+            Default: serverauth 
+            Comma separated list of: 
+             serverauth
+             clientauth
+             codesigning
+             emailprotection
+             ipsecendsystem
+             ipsectunnel
+             ipsecuser
+             timestamping
+             ocspsigning
+             microsoftservergatedcrypto
+             netscapeservergatedcrypto
+             microsoftcommercialcodesigning
+             microsoftkernelcodesigning
+
+ ca         Certificate Authority Basic Constraint (boolean)
+            Default: false
+ maxpathlen Certificate Authority Max Path Length Basic Constraint
+            Default: 0
+ template   Set Microsoft ADCS enrollment certificate type extension
+ name       Certificate Common Name
+            Default: first subject name
+ cert       Filename or path of certificate file to read or create
+ key        Filename or path of private key file to read or create
+ csr        Filename or path of certificate signing request to read or create
+`
+
+type CLIConfig struct {
 	Version kong.VersionFlag `env:"-" help:"Show version number"`
 	Logging struct {
 		Level  string `default:"info"    help:"logging level"`
@@ -50,8 +109,11 @@ var CLI struct {
 	CommonSans     []string                         `help:"List of subject alt-names to add to all generated certificates"`
 	CaMode         ca.CaMode                        `default:"generate"                                                    enum:"${camodes}"                                                 help:"CA certificate mode (${camodes})"`
 	NoStdin        bool                             `help:"Don't read hostnames from stdin"`
-	Commands       []string                         `arg:""                                                                help:"certificate, sign, request"                                 sep:"none"`
+
+	Commands []string `embed:""`
 }
+
+var CLI CLIConfig //nolint:gochecknoglobals
 
 func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error {
 	appCtx, appCancel := context.WithCancel(context.Background())
@@ -67,7 +129,7 @@ func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error {
 	vars["usages"] = strings.Join(certspec.Usages(), ",")
 	vars["extendedusages"] = strings.Join(certspec.ExtUsages(), ",")
 	_ = kong.Parse(&CLI,
-		kong.Description(version.Description),
+		kong.Description(version.Description+longHelp),
 		kong.DefaultEnvars(version.Name),
 		vars)
 
