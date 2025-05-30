@@ -321,13 +321,14 @@ func csrFromSpec(ctx context.Context, caConfig ca.CaConfig, commonUsage x509.Key
 			r = append(r, spec.ExtKeyUsage...)
 			return lo.Uniq(r)
 		}(),
-		IsCA:       spec.IsCa,
-		MaxPathLen: spec.MaxPathLen,
+		IsCA:                spec.IsCa,
+		MaxPathLen:          spec.MaxPathLen,
+		CertificateTemplate: spec.CertificateTemplate,
 	}
 
 	subject := ca.SubjectFromCaConfig(caConfig)
 	// Blank out the subject specific names
-	subject.CommonName = ""
+	subject.CommonName = spec.CommonName
 	subject.SerialNumber = ""
 
 	l.Debug("Generating new private key", zap.String("key_type", keyType.String()))

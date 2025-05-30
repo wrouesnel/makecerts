@@ -15,6 +15,8 @@ const usage = "usage"
 const extusage = "extusage"
 const ca = "ca"
 const maxpathlen = "maxpathlen"
+const template = "template"
+const name = "name"
 
 const cert = "cert"
 const key = "key"
@@ -54,10 +56,14 @@ func ExtUsages() []string {
 type CertSpecification struct {
 	Hosts []string
 
-	KeyUsage    x509.KeyUsage
-	ExtKeyUsage []x509.ExtKeyUsage
-	IsCa        bool
-	MaxPathLen  int
+	// CommonName is the explicitly set common name.
+	CommonName string
+
+	KeyUsage            x509.KeyUsage
+	ExtKeyUsage         []x509.ExtKeyUsage
+	IsCa                bool
+	MaxPathLen          int
+	CertificateTemplate string
 
 	// Certificate file is the name of the certificate
 	CertificateFile string
@@ -86,7 +92,7 @@ func (c *CertSpecification) UnmarshalText(text []byte) error {
 		c.Hosts = append(c.Hosts, san)
 	}
 
-	query, err := url.ParseQuery(strings.ToLower(options))
+	query, err := url.ParseQuery(options)
 	if err != nil {
 		return err
 	}
@@ -130,6 +136,16 @@ func (c *CertSpecification) UnmarshalText(text []byte) error {
 			return errors.Join(ErrUnknownParameter, fmt.Errorf("maxpathlen could not be parsed: %s", value))
 		}
 		c.MaxPathLen = int(parsed)
+	}
+
+	if query.Has(name) {
+		value := query.Get(name)
+		c.CommonName = value
+	}
+
+	if query.Has(template) {
+		value := query.Get(template)
+		c.CertificateTemplate = value
 	}
 
 	c.CertificateFile = query.Get(cert)

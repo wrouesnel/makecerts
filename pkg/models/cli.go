@@ -14,5 +14,5 @@ type CertificateFilenameConfig struct {
 
 	CertFileExt    string `help:"Certificate file extension to add to public keys" default:"crt"`
 	KeyFileExt     string `help:"Certificate file extension to add to private keys" default:"key"`
-	RequestFileExt string `help:"Certificate Request file extension" default:"csr"`
+	RequestFileExt string `help:"Certificate Request file extension" default:"req"`
 }
