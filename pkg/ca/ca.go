@@ -27,7 +27,7 @@ type CaMode string
 
 type CaConfig struct {
 	CommonName         string        `help:"CA Certificate Common Name, as in 'example.com'" default:"localhost"`
-	Country            string        `help:"Certificate attribute: Country" default:"INT"`
+	Country            string        `help:"Certificate attribute: Country" default:"US"`
 	Organization       string        `help:"Certificate attribute: Organization" default:"makecerts"`
 	OrganizationalUnit string        `help:"Certificate attribute: Organizational Unit" default:"Root CA"`
 	Duration           time.Duration `help:"Duration in days that CA certificate is valid for" default:"175199h"`
