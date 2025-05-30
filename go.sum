@@ -138,6 +138,8 @@ github.com/wrouesnel/certutils v0.0.0-20250530042858-5cebd33c2c0a h1:Qd0vX0xqaxy
 github.com/wrouesnel/certutils v0.0.0-20250530042858-5cebd33c2c0a/go.mod h1:13L64f6je/oLyUCzSoZLlDR5OVPjP+203qXqPkyGMCM=
 github.com/wrouesnel/certutils v0.0.0-20250530043034-66ce375ba778 h1:ZRBpQ67oID4vTTNOtiZhVLH6R+WDxBIV36c2Fc7+wBM=
 github.com/wrouesnel/certutils v0.0.0-20250530043034-66ce375ba778/go.mod h1:13L64f6je/oLyUCzSoZLlDR5OVPjP+203qXqPkyGMCM=
+github.com/wrouesnel/certutils v0.0.0-20250530044349-553903d77dc0 h1:yUEOCOYOnYq7zo2qBd48w/dJ4yWr8cuAJL4KmdaZxf8=
+github.com/wrouesnel/certutils v0.0.0-20250530044349-553903d77dc0/go.mod h1:13L64f6je/oLyUCzSoZLlDR5OVPjP+203qXqPkyGMCM=
 github.com/wrouesnel/ctxstdio v0.0.0-20250529060509-2068f04846cf h1:5jlFlm8lvt371HGItju71MtlSJP2F+0WGOZcba6Wimg=
 github.com/wrouesnel/ctxstdio v0.0.0-20250529060509-2068f04846cf/go.mod h1:OMZ+l1BGZLWO2U/ZMMQEKpMLsGJm7zSMCftWOc0+4w0=
 github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 h1:nIPpBwaJSVYIxUFsDv3M8ofmx9yWTog9BfvIu0q41lo=

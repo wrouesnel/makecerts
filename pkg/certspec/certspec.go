@@ -14,6 +14,7 @@ import (
 const usage = "usage"
 const extusage = "extusage"
 const ca = "ca"
+const maxpathlen = "maxpathlen"
 
 const cert = "cert"
 const key = "key"
@@ -56,6 +57,7 @@ type CertSpecification struct {
 	KeyUsage    x509.KeyUsage
 	ExtKeyUsage []x509.ExtKeyUsage
 	IsCa        bool
+	MaxPathLen  int
 
 	// Certificate file is the name of the certificate
 	CertificateFile string
@@ -78,6 +80,7 @@ func (c *CertSpecification) UnmarshalText(text []byte) error {
 	c.KeyUsage = 0
 	c.ExtKeyUsage = make([]x509.ExtKeyUsage, 0)
 	c.IsCa = false
+	c.MaxPathLen = 0
 
 	for _, san := range strings.Split(sans, ",") {
 		c.Hosts = append(c.Hosts, san)
@@ -118,6 +121,15 @@ func (c *CertSpecification) UnmarshalText(text []byte) error {
 		if err != nil {
 			return errors.Join(ErrUnknownParameter, fmt.Errorf("ca parameter %s unrecognized", value))
 		}
+	}
+
+	if query.Has(maxpathlen) {
+		value := query.Get(maxpathlen)
+		parsed, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return errors.Join(ErrUnknownParameter, fmt.Errorf("maxpathlen could not be parsed: %s", value))
+		}
+		c.MaxPathLen = int(parsed)
 	}
 
 	c.CertificateFile = query.Get(cert)

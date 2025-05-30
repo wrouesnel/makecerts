@@ -321,7 +321,8 @@ func csrFromSpec(ctx context.Context, caConfig ca.CaConfig, commonUsage x509.Key
 			r = append(r, spec.ExtKeyUsage...)
 			return lo.Uniq(r)
 		}(),
-		IsCA: spec.IsCa,
+		IsCA:       spec.IsCa,
+		MaxPathLen: spec.MaxPathLen,
 	}
 
 	subject := ca.SubjectFromCaConfig(caConfig)
