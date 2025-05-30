@@ -6,12 +6,8 @@ linters:
   enable-all: true
   disable:
     # Deprecated
-    - golint
     - ireturn
-    - interfacer
-    - exhaustivestruct
-    - maligned
-    - scopelint
+    - exportloopref
     # Doesn't work
     - promlinter
     # Not used
@@ -37,6 +33,10 @@ linters:
     - nonamedreturns # I'm swinging to the opinion these are fine
     - depguard # not using it right now
     - err113 # annoying
+    - gocognit
+    - cyclop
+    - gochecknoinits
+    - funlen
 
 issues:
   exclude-rules:
@@ -47,10 +47,13 @@ issues:
         - varnamelen
         - revive
         - perfsprint
+        - errcheck
     - path: magefile.go
       linters:
         - unparam
         - perfsprint
+        - var-declaration
+        - revive
 
 linters-settings:
 #  depguard:
@@ -131,3 +134,4 @@ linters-settings:
   gocritic:
     disabled-checks:
       - commentFormatting
+      - unslice

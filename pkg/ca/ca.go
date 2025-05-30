@@ -25,9 +25,9 @@ var (
 )
 
 // ENUM(existing,generate,generate-csr).
-type CaMode string
+type CaMode string //nolint:revive
 
-type CaConfig struct {
+type CaConfig struct { //nolint:revive
 	CommonName         string        `default:"localhost" help:"CA Certificate Common Name, as in 'example.com'"`
 	Country            string        `default:"US"        help:"Certificate attribute: Country"`
 	Organization       string        `default:"makecerts" help:"Certificate attribute: Organization"`

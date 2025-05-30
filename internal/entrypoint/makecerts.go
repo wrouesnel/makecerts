@@ -277,10 +277,10 @@ func generateSignatures(ctx context.Context, fs afero.Fs, caCert *models.X509Cer
 			}
 
 			hosts = append(hosts, csr.DNSNames...)
-			hosts = append(hosts, lo.Map(csr.URIs, func(item *url.URL, index int) string {
+			hosts = append(hosts, lo.Map(csr.URIs, func(item *url.URL, _ int) string {
 				return item.String()
 			})...)
-			hosts = append(hosts, lo.Map(csr.IPAddresses, func(item net.IP, index int) string {
+			hosts = append(hosts, lo.Map(csr.IPAddresses, func(item net.IP, _ int) string {
 				return item.String()
 			})...)
 			hosts = append(hosts, csr.EmailAddresses...)

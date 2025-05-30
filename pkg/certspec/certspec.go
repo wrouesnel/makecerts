@@ -23,11 +23,11 @@ const cert = "cert"
 const key = "key"
 const csr = "csr"
 
-var keyUsageMap = map[string]string{}
-var extKeyUsageMap = map[string]string{}
+var keyUsageMap = map[string]string{}    //nolint:gochecknoglobals
+var extKeyUsageMap = map[string]string{} //nolint:gochecknoglobals
 
-var usageList = []string{}
-var extUsageList = []string{}
+var usageList = []string{}    //nolint:gochecknoglobals
+var extUsageList = []string{} //nolint:gochecknoglobals
 
 var (
 	ErrUnknownParameter = errors.New("unknown parameter")
@@ -72,11 +72,6 @@ type CertSpecification struct {
 	KeyFile string
 	// CSRFile is the name of the CSR
 	CSRFile string
-}
-
-func (c *CertSpecification) MarshalText() (text []byte, err error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (c *CertSpecification) UnmarshalText(text []byte) error {
@@ -136,7 +131,7 @@ func (c *CertSpecification) UnmarshalText(text []byte) error {
 		if err != nil {
 			return errors.Join(ErrUnknownParameter, fmt.Errorf("maxpathlen could not be parsed: %s", value))
 		}
-		c.MaxPathLen = int(parsed)
+		c.MaxPathLen = int(parsed) //nolint:gosec
 	}
 
 	if query.Has(name) {

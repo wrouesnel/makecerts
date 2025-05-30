@@ -14,7 +14,7 @@ const PrivatePermissions = os.FileMode(0600)
 func GenerateOrLoadPrivateKey(keyType certutils.PrivateKeyType, keyPath *pathlib.Path) (interface{}, error) {
 	l := zap.L()
 	var privateKey interface{}
-	if exists, err := keyPath.Exists(); err != nil {
+	if exists, err := keyPath.Exists(); err != nil { //nolint:nestif
 		l.Error("Filesystem access error", zap.Error(err))
 		return nil, err
 	} else if !exists {
