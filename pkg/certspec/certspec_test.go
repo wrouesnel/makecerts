@@ -26,7 +26,7 @@ func (s *SpecSuite) TestCertSpecificationUnmarshal(c *C) {
 
 	err = cs.UnmarshalText([]byte("localhost?usage=digitalsignature&extusage=serverauth,clientauth&extusage=codesigning&ca=true"))
 	c.Assert(err, IsNil)
-	c.Assert(cs.Hostnames, DeepEquals, []string{"localhost"})
+	c.Assert(cs.Hosts, DeepEquals, []string{"localhost"})
 	c.Assert(cs.KeyUsage, Equals, x509.KeyUsageDigitalSignature)
 	c.Assert(cs.ExtKeyUsage, DeepEquals, []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageCodeSigning})
 	c.Assert(cs.IsCa, Equals, true)

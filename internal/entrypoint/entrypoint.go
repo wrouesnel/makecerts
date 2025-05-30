@@ -3,8 +3,9 @@ package entrypoint
 import (
 	"context"
 	"github.com/wrouesnel/certutils"
+	"github.com/wrouesnel/ctxstdio"
 	"github.com/wrouesnel/makecerts/pkg/ca"
-	"github.com/wrouesnel/makecerts/pkg/ctxstdio"
+	"github.com/wrouesnel/makecerts/pkg/certspec"
 	"github.com/wrouesnel/makecerts/pkg/models"
 	"github.com/wrouesnel/makecerts/version"
 	"io"
@@ -38,14 +39,17 @@ var CLI struct {
 		Format string `default:"console" enum:"console,json"  help:"logging format (${enum})"`
 	} `embed:"" prefix:"log-"`
 
-	PrivateKeyType certutils.PrivateKeyType         `help:"Private Key Type" enum:"{privatekeytypes}" default:"ecp256"`
+	Defaults       bool                             `help:"Apply default certificate extensions if none specified" negatable:"" default:"true"`
+	PrivateKeyType certutils.PrivateKeyType         `help:"Private Key Type (${privatekeytypes})" enum:"${privatekeytypes}" default:"ecp256"`
 	FilenameConfig models.CertificateFilenameConfig `embed:""`
 	Ca             ca.CaConfig                      `embed:"" prefix:"ca-"`
 	Duration       time.Duration                    `help:"Duration in days that certificate is valid for" default:"9552h"`
+	Usage          []certutils.X509KeyUsage         `help:"usage to be applied to all generated certificates" enum:"${usages}"`
+	ExtendedUsage  []certutils.X509ExtKeyUsage      `help:"extended usage to be applied to all generated certificates" enum:"${extendedusages}"`
 	CommonSans     []string                         `help:"List of subject alt-names to add to all generated certificates"`
-	CaMode         ca.CaMode                        `help:"CA certificate mode" enum:"${camodes}" default:"generate"`
-	NoStdin        bool                             `help:"Don't read hostnames from stdin'"`
-	Commands       []string                         `arg:"" help:"Command list - certificate, sign, request - and then list of specs." sep:"none"`
+	CaMode         ca.CaMode                        `help:"CA certificate mode (${camodes})" enum:"${camodes}" default:"generate"`
+	NoStdin        bool                             `help:"Don't read hostnames from stdin"`
+	Commands       []string                         `arg:"" help:"certificate, sign, request" sep:"none"`
 }
 
 func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
@@ -59,6 +63,8 @@ func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error {
 	vars := kong.Vars{"version": version.Version}
 	vars["privatekeytypes"] = strings.Join(certutils.PrivateKeyTypeNames(), ",")
 	vars["camodes"] = strings.Join(ca.CaModeNames(), ",")
+	vars["usages"] = strings.Join(certspec.Usages(), ",")
+	vars["extendedusages"] = strings.Join(certspec.ExtUsages(), ",")
 	_ = kong.Parse(&CLI,
 		kong.Description(version.Description),
 		kong.DefaultEnvars(version.Name),
@@ -90,6 +96,8 @@ func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error {
 		sig := <-sigCh
 		logger.Info("Caught signal - exiting", zap.String("signal", sig.String()))
 		cancelFn()
+		stdIn.Close()
+		logger.Warn("Stdin Closed")
 	}()
 
 	// Install as the global logger
@@ -102,5 +110,8 @@ func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error {
 	}
 	ctx := ctxstdio.Set(sigCtx, stdOut, stdErr, stdIn)
 
-	return MakeCerts(ctx)
+	if err := MakeCerts(ctx); err != nil {
+		logger.Error("Error", zap.Error(err))
+	}
+	return err
 }

@@ -11,7 +11,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/samber/lo v1.50.0
 	github.com/spf13/afero v1.14.0
-	github.com/wrouesnel/certutils v0.0.0-20250529065109-369cd8c64a7a
+	github.com/wrouesnel/certutils v0.0.0-20250530043034-66ce375ba778
 	github.com/yuseferi/zax/v2 v2.3.5
 	go.uber.org/zap v1.27.0
 	golang.org/x/mod v0.24.0

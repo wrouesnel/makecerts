@@ -22,6 +22,9 @@ const csr = "csr"
 var keyUsageMap = map[string]string{}
 var extKeyUsageMap = map[string]string{}
 
+var usageList = []string{}
+var extUsageList = []string{}
+
 var (
 	ErrUnknownParameter = errors.New("unknown parameter")
 )
@@ -29,12 +32,22 @@ var (
 func init() {
 	// Setup the lower case lookup tables
 	for _, value := range certutils.ListKeyUsage() {
+		usageList = append(usageList, strings.ToLower(value))
 		keyUsageMap[strings.ToLower(value)] = value
 	}
 
 	for _, value := range certutils.ListExtKeyUsage() {
+		extUsageList = append(extUsageList, strings.ToLower(value))
 		extKeyUsageMap[strings.ToLower(value)] = value
 	}
+}
+
+func Usages() []string {
+	return usageList[:]
+}
+
+func ExtUsages() []string {
+	return extUsageList[:]
 }
 
 type CertSpecification struct {
