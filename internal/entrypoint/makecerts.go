@@ -114,7 +114,7 @@ func MakeCerts(ctx context.Context) error {
 			commonExtUsages = append(commonExtUsages, extUsage.ExtKeyUsage)
 		}
 		commonExtUsages = lo.Uniq(commonExtUsages)
-	} else {
+	} else if CLI.Defaults {
 		// Default certificate common usage to a basic TLS server.
 		l.Info("Applying default certificate extensions")
 		commonUsages = x509.KeyUsageDigitalSignature
