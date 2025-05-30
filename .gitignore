@@ -10,4 +10,5 @@ node_modules
 /*.crt
 /*.csr
 /*.key
+/*.req
 
