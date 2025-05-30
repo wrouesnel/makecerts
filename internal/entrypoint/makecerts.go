@@ -7,6 +7,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/chigopher/pathlib"
 	"github.com/samber/lo"
 	"github.com/spf13/afero"
@@ -18,21 +24,15 @@ import (
 	"github.com/wrouesnel/makecerts/pkg/util"
 	"github.com/yuseferi/zax/v2"
 	"go.uber.org/zap"
-	"net"
-	"net/url"
-	"os"
-	"strings"
-	"time"
 )
 
 var ErrCommandErr = errors.New("Invalid certificate specifications")
 var ErrCertErr = errors.New("error generating certificate")
 
-// CertOperations is the list of possible operation categories
-// ENUM(certificate,sign,request)
+// ENUM(certificate,sign,request).
 type CertOperations string
 
-// MakeCerts implements the makcerts command
+// MakeCerts implements the makcerts command.
 func MakeCerts(ctx context.Context) error {
 	l := zap.L().With(zax.Get(ctx)...)
 	fs := afero.NewOsFs()
@@ -241,7 +241,7 @@ func generateCertificates(ctx context.Context, fs afero.Fs, caCert *models.X509C
 	return nil
 }
 
-// generateSignatures signs the provided certificate specifications
+// generateSignatures signs the provided certificate specifications.
 func generateSignatures(ctx context.Context, fs afero.Fs, caCert *models.X509CertificateAndKey, specs []certspec.CertSpecification) error {
 	l := zap.L().With(zax.Get(ctx)...)
 	l.Info("Generating signed certificates")
@@ -310,7 +310,7 @@ func generateSignatures(ctx context.Context, fs afero.Fs, caCert *models.X509Cer
 	return nil
 }
 
-// csrFromSpec centralizes the CSR generation code and is use by certificate mode and signing mode
+// csrFromSpec centralizes the CSR generation code and is use by certificate mode and signing mode.
 func csrFromSpec(ctx context.Context, caConfig ca.CaConfig, commonUsage x509.KeyUsage, commonExtUsage []x509.ExtKeyUsage, keyType certutils.PrivateKeyType, spec certspec.CertSpecification) (*x509.CertificateRequest, interface{}, error) {
 	l := zap.L().With(zax.Get(ctx)...)
 	// Request the CSR

@@ -1,13 +1,14 @@
 package ca_test
 
 import (
+	"testing"
+	"time"
+
 	"github.com/spf13/afero"
 	"github.com/wrouesnel/certutils"
 	"github.com/wrouesnel/makecerts/pkg/ca"
 	"github.com/wrouesnel/makecerts/pkg/models"
 	"go.uber.org/zap"
-	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 )
@@ -34,7 +35,7 @@ func (s *CaSuite) TearDownSuite(c *C) {
 	zap.L().Sync()
 }
 
-// TestHandleCACertificate
+// TestHandleCACertificate.
 func (s *CaSuite) TestHandleCACertificate(c *C) {
 	fsConfig := models.CertificateFilenameConfig{
 		CACertName:     "",

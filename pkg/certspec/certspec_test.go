@@ -2,9 +2,10 @@ package certspec
 
 import (
 	"crypto/x509"
+	"testing"
+
 	"github.com/spf13/afero"
 	. "gopkg.in/check.v1"
-	"testing"
 )
 
 // Hook up gocheck into the "go test" runner.

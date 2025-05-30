@@ -5,8 +5,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/wrouesnel/makecerts/internal/entrypoint"
 	"os"
+
+	"github.com/wrouesnel/makecerts/internal/entrypoint"
 )
 
 func main() {

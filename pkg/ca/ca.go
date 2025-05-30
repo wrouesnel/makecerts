@@ -6,6 +6,9 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/chigopher/pathlib"
 	"github.com/spf13/afero"
 	"github.com/wrouesnel/certutils"
@@ -13,8 +16,6 @@ import (
 	"github.com/wrouesnel/makecerts/pkg/storage"
 	"github.com/wrouesnel/makecerts/pkg/util"
 	"go.uber.org/zap"
-	"strings"
-	"time"
 )
 
 var (
@@ -22,15 +23,15 @@ var (
 	ErrCSRRequested   = errors.New("CA CSR requested")
 )
 
-// ENUM(existing,generate,generate-csr)
+// ENUM(existing,generate,generate-csr).
 type CaMode string
 
 type CaConfig struct {
-	CommonName         string        `help:"CA Certificate Common Name, as in 'example.com'" default:"localhost"`
-	Country            string        `help:"Certificate attribute: Country" default:"US"`
-	Organization       string        `help:"Certificate attribute: Organization" default:"makecerts"`
-	OrganizationalUnit string        `help:"Certificate attribute: Organizational Unit" default:"Root CA"`
-	Duration           time.Duration `help:"Duration in days that CA certificate is valid for" default:"175199h"`
+	CommonName         string        `default:"localhost" help:"CA Certificate Common Name, as in 'example.com'"`
+	Country            string        `default:"US"        help:"Certificate attribute: Country"`
+	Organization       string        `default:"makecerts" help:"Certificate attribute: Organization"`
+	OrganizationalUnit string        `default:"Root CA"   help:"Certificate attribute: Organizational Unit"`
+	Duration           time.Duration `default:"175199h"   help:"Duration in days that CA certificate is valid for"`
 }
 
 func SubjectFromCaConfig(caConfig CaConfig) pkix.Name {

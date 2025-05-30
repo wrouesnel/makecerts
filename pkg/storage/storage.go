@@ -2,10 +2,11 @@ package storage
 
 import (
 	"errors"
+	"os"
+
 	"github.com/chigopher/pathlib"
 	"github.com/wrouesnel/certutils"
 	"go.uber.org/zap"
-	"os"
 )
 
 func GenerateOrLoadPrivateKey(keyType certutils.PrivateKeyType, keyPath *pathlib.Path) (interface{}, error) {

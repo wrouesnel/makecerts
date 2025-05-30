@@ -4,11 +4,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/samber/lo"
-	"github.com/wrouesnel/certutils"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/samber/lo"
+	"github.com/wrouesnel/certutils"
 )
 
 const usage = "usage"

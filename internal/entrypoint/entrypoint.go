@@ -2,18 +2,19 @@ package entrypoint
 
 import (
 	"context"
-	"github.com/wrouesnel/certutils"
-	"github.com/wrouesnel/ctxstdio"
-	"github.com/wrouesnel/makecerts/pkg/ca"
-	"github.com/wrouesnel/makecerts/pkg/certspec"
-	"github.com/wrouesnel/makecerts/pkg/models"
-	"github.com/wrouesnel/makecerts/version"
 	"io"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/wrouesnel/certutils"
+	"github.com/wrouesnel/ctxstdio"
+	"github.com/wrouesnel/makecerts/pkg/ca"
+	"github.com/wrouesnel/makecerts/pkg/certspec"
+	"github.com/wrouesnel/makecerts/pkg/models"
+	"github.com/wrouesnel/makecerts/version"
 
 	"github.com/pkg/errors"
 
@@ -33,23 +34,23 @@ const KeyPermissions = 0600
 
 //nolint:gochecknoglobals
 var CLI struct {
-	Version kong.VersionFlag `help:"Show version number" env:"-"`
+	Version kong.VersionFlag `env:"-" help:"Show version number"`
 	Logging struct {
 		Level  string `default:"info"    help:"logging level"`
 		Format string `default:"console" enum:"console,json"  help:"logging format (${enum})"`
 	} `embed:"" prefix:"log-"`
 
-	Defaults       bool                             `help:"Apply default certificate extensions if none specified" negatable:"" default:"true"`
-	PrivateKeyType certutils.PrivateKeyType         `help:"Private Key Type (${privatekeytypes})" enum:"${privatekeytypes}" default:"ecp256"`
+	Defaults       bool                             `default:"true"                                                        help:"Apply default certificate extensions if none specified"     negatable:""`
+	PrivateKeyType certutils.PrivateKeyType         `default:"ecp256"                                                      enum:"${privatekeytypes}"                                         help:"Private Key Type (${privatekeytypes})"`
 	FilenameConfig models.CertificateFilenameConfig `embed:""`
-	Ca             ca.CaConfig                      `embed:"" prefix:"ca-"`
-	Duration       time.Duration                    `help:"Duration in days that certificate is valid for" default:"9552h"`
-	Usage          []certutils.X509KeyUsage         `help:"usage to be applied to all generated certificates" enum:"${usages}"`
-	ExtendedUsage  []certutils.X509ExtKeyUsage      `help:"extended usage to be applied to all generated certificates" enum:"${extendedusages}"`
+	Ca             ca.CaConfig                      `embed:""                                                              prefix:"ca-"`
+	Duration       time.Duration                    `default:"9552h"                                                       help:"Duration in days that certificate is valid for"`
+	Usage          []certutils.X509KeyUsage         `enum:"${usages}"                                                      help:"usage to be applied to all generated certificates"`
+	ExtendedUsage  []certutils.X509ExtKeyUsage      `enum:"${extendedusages}"                                              help:"extended usage to be applied to all generated certificates"`
 	CommonSans     []string                         `help:"List of subject alt-names to add to all generated certificates"`
-	CaMode         ca.CaMode                        `help:"CA certificate mode (${camodes})" enum:"${camodes}" default:"generate"`
+	CaMode         ca.CaMode                        `default:"generate"                                                    enum:"${camodes}"                                                 help:"CA certificate mode (${camodes})"`
 	NoStdin        bool                             `help:"Don't read hostnames from stdin"`
-	Commands       []string                         `arg:"" help:"certificate, sign, request" sep:"none"`
+	Commands       []string                         `arg:""                                                                help:"certificate, sign, request"                                 sep:"none"`
 }
 
 func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
