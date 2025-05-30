@@ -110,7 +110,7 @@ type CLIConfig struct {
 	CaMode         ca.CaMode                        `default:"generate"                                                    enum:"${camodes}"                                                 help:"CA certificate mode (${camodes})"`
 	NoStdin        bool                             `help:"Don't read hostnames from stdin"`
 
-	Commands []string `embed:""`
+	Commands []string `arg:"" help:"<certificate|request|sign> [<subject>[,<subject>...][?options]...|--]"`
 }
 
 var CLI CLIConfig //nolint:gochecknoglobals
