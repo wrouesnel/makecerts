@@ -883,7 +883,7 @@ func doRelease(OSArch string) func() error {
 		archiveCmds := map[string]func() error{}
 		if platform.OS == "windows" {
 			// build a zip binary as well
-			archiveName := fmt.Sprintf("%s.zip", platform.ReleaseBase())
+			archiveName := platform.ReleaseBase() + ".zip"
 			archiveCmds[archiveName] = concurrentRun(func() error {
 				if _, err := os.Stat(archiveName); err == nil {
 					_ = os.Remove(archiveName)

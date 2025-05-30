@@ -9,6 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const PrivatePermissions = os.FileMode(0600)
+
 func GenerateOrLoadPrivateKey(keyType certutils.PrivateKeyType, keyPath *pathlib.Path) (interface{}, error) {
 	l := zap.L()
 	var privateKey interface{}
@@ -27,7 +29,7 @@ func GenerateOrLoadPrivateKey(keyType certutils.PrivateKeyType, keyPath *pathlib
 			l.Error("Encoding private key failed", zap.Error(err))
 			return nil, err
 		}
-		if err := keyPath.WriteFileMode(privateKeyBytes, os.FileMode(0600)); err != nil {
+		if err := keyPath.WriteFileMode(privateKeyBytes, PrivatePermissions); err != nil {
 			l.Error("Saving private key failed", zap.Error(err))
 			return nil, err
 		}

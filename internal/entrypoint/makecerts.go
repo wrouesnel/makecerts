@@ -26,8 +26,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrCommandErr = errors.New("Invalid certificate specifications")
-var ErrCertErr = errors.New("error generating certificate")
+const PrivatePermissions = os.FileMode(0600)
+
+var ErrCertificateSpecification = errors.New("Invalid certificate specifications")
+var ErrCertGeneration = errors.New("error generating certificate")
 
 // ENUM(certificate,sign,request).
 type CertOperations string
@@ -81,7 +83,7 @@ func MakeCerts(ctx context.Context) error {
 		spec := certspec.CertSpecification{}
 		if err := spec.UnmarshalText([]byte(command)); err != nil {
 			l.Error("Invalid specificaton", zap.String("line", command), zap.String("error", err.Error()))
-			commandErr = ErrCommandErr
+			commandErr = ErrCertificateSpecification
 		}
 		ops[currentOp] = append(ops[currentOp], spec)
 	}
@@ -177,7 +179,7 @@ func generateRequests(ctx context.Context, fs afero.Fs, commonUsage x509.KeyUsag
 			return err
 		}
 
-		if err := keyPath.WriteFileMode(keyPEMbytes, os.FileMode(0600)); err != nil {
+		if err := keyPath.WriteFileMode(keyPEMbytes, PrivatePermissions); err != nil {
 			return err
 		}
 		l.Info("Wrote certificate request", zap.String("csr_path", csrPath.String()), zap.String("key_path", keyPath.String()))
@@ -209,7 +211,6 @@ func generateCertificates(ctx context.Context, fs afero.Fs, caCert *models.X509C
 
 		if spec.CertificateFile == "" {
 			spec.CertificateFile = fmt.Sprintf("%s.%s", certificateNameBuilder(CLI.FilenameConfig, spec.Hosts[0]), CLI.FilenameConfig.CertFileExt)
-
 		}
 
 		if spec.KeyFile == "" {
@@ -233,7 +234,7 @@ func generateCertificates(ctx context.Context, fs afero.Fs, caCert *models.X509C
 			return err
 		}
 
-		if err := keyPath.WriteFileMode(keyPEMbytes, os.FileMode(0600)); err != nil {
+		if err := keyPath.WriteFileMode(keyPEMbytes, PrivatePermissions); err != nil {
 			return err
 		}
 		l.Info("Wrote certificates", zap.String("cert_path", certPath.String()), zap.String("key_path", keyPath.String()))
@@ -269,9 +270,10 @@ func generateSignatures(ctx context.Context, fs afero.Fs, caCert *models.X509Cer
 		}
 
 		for _, csr := range csrs {
+			// Note: hosts is logging only here.
 			hosts := []string{}
 			if csr.Subject.CommonName != "" {
-				hosts = append(hosts)
+				hosts = append(hosts, csr.Subject.CommonName)
 			}
 
 			hosts = append(hosts, csr.DNSNames...)

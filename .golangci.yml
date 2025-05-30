@@ -32,6 +32,11 @@ linters:
     - gosimple
     - govet
     - unused
+    # Project specific decisions
+    - wrapcheck
+    - nonamedreturns # I'm swinging to the opinion these are fine
+    - depguard # not using it right now
+    - err113 # annoying
 
 issues:
   exclude-rules:
@@ -40,11 +45,19 @@ issues:
         - dupl
         - funlen
         - varnamelen
+        - revive
+        - perfsprint
     - path: magefile.go
       linters:
         - unparam
+        - perfsprint
 
 linters-settings:
+#  depguard:
+#    rules:
+#      main:
+#        list-mode: original
+#        deny: []
   varnamelen:
     # The longest distance, in source lines, that is being considered a "small scope." (defaults to 5)
     # Variables used in at most this many lines will be ignored.
@@ -72,6 +85,8 @@ linters-settings:
       - v
       - c
       - ip
+      - ca
+      - fs
     # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
     # Entries must be in one of the following forms (see below for examples):
     # - for variables, parameters, named return values, method receivers, or type parameters:

@@ -53,7 +53,7 @@ var CLI struct {
 	Commands       []string                         `arg:""                                                                help:"certificate, sign, request"                                 sep:"none"`
 }
 
-func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error { //nolint:funlen,gocognit,gocyclo,cyclop,maintidx
+func Entrypoint(stdOut io.Writer, stdErr io.Writer, stdIn io.ReadCloser) error {
 	appCtx, appCancel := context.WithCancel(context.Background())
 	defer appCancel()
 

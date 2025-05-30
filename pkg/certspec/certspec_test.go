@@ -1,8 +1,10 @@
-package certspec
+package certspec_test
 
 import (
 	"crypto/x509"
 	"testing"
+
+	"github.com/wrouesnel/makecerts/pkg/certspec"
 
 	"github.com/spf13/afero"
 	. "gopkg.in/check.v1"
@@ -20,7 +22,7 @@ var _ = Suite(&SpecSuite{})
 func (s *SpecSuite) TestCertSpecificationUnmarshal(c *C) {
 	var err error
 
-	cs := &CertSpecification{}
+	cs := &certspec.CertSpecification{}
 
 	err = cs.UnmarshalText([]byte("localhost"))
 	c.Assert(err, IsNil)

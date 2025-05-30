@@ -1,8 +1,10 @@
-package entrypoint
+package entrypoint_test
 
 import (
 	"crypto/tls"
 	"crypto/x509"
+
+	"github.com/wrouesnel/makecerts/internal/entrypoint" //nolint:depguard
 
 	"testing"
 	"time"
@@ -37,7 +39,7 @@ func (s *FunctionalSuite) TestCertificateGeneration(c *C) {
 		"certificate", hostname,
 	}
 
-	err = Entrypoint(os.Stdout, os.Stderr, os.Stdin)
+	err = entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin)
 	c.Assert(err, IsNil)
 
 	// Expect certificate names
@@ -89,7 +91,7 @@ func (s *FunctionalSuite) TestRSACertificateGeneration(c *C) {
 		"example3.com",
 	}
 
-	err = Entrypoint(os.Stdout, os.Stderr, os.Stdin)
+	err = entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin)
 	c.Assert(err, IsNil)
 }
 
@@ -112,7 +114,7 @@ func (s *FunctionalSuite) TestECCertifcateGeneration(c *C) {
 			"ec-example2.com",
 			"ec-example3.com",
 		}
-		err = Entrypoint(os.Stdout, os.Stderr, os.Stdin)
+		err = entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin)
 		c.Assert(err, IsNil)
 	}
 }

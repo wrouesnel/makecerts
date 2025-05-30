@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wrouesnel/makecerts/internal/entrypoint"
+	"github.com/wrouesnel/makecerts/internal/entrypoint" //nolint:depguard
 )
 
 func main() {

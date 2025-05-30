@@ -21,6 +21,7 @@ import (
 var (
 	ErrCADoesNotExist = errors.New("existing CA does not exist")
 	ErrCSRRequested   = errors.New("CA CSR requested")
+	ErrCouldNotLoadCA = errors.New("could not load CA")
 )
 
 // ENUM(existing,generate,generate-csr).
@@ -159,7 +160,7 @@ func loadExistingCA(certPath *pathlib.Path, keyPath *pathlib.Path) (*models.X509
 	// since these are afero paths, they could be anywhere - we need to copy them to real paths and load them from there.
 	certificatePair, err := certutils.LoadX509KeyPair(certPath.Fs(), certPath.String(), keyPath.String())
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("could not load CA certificate from: %s and %s", certPath.String(), keyPath.String()))
+		return nil, errors.Join(ErrCouldNotLoadCA, fmt.Errorf("could not load CA certificate from: %s and %s", certPath.String(), keyPath.String()), err)
 	}
 	caCertificate, err := x509.ParseCertificate(certificatePair.Certificate[0])
 	if err != nil {
