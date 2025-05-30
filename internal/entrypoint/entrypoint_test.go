@@ -1,4 +1,4 @@
-package main
+package entrypoint
 
 import (
 	"crypto/tls"
@@ -36,7 +36,7 @@ func (s *FunctionalSuite) TestCertificateGeneration(c *C) {
 		"--host", hostname,
 	}
 
-	err = realMain()
+	err = Entrypoint()
 	c.Assert(err, IsNil)
 
 	// Expect certificate names
@@ -87,7 +87,7 @@ func (s *FunctionalSuite) TestRSACertificateGeneration(c *C) {
 		"--host", "example3.com",
 	}
 
-	err = realMain()
+	err = Entrypoint()
 	c.Assert(err, IsNil)
 }
 
@@ -109,7 +109,7 @@ func (s *FunctionalSuite) TestECCertifcateGeneration(c *C) {
 			"--host", "ec-example2.com",
 			"--host", "ec-example3.com",
 		}
-		err := realMain()
+		err := Entrypoint()
 		c.Assert(err, IsNil)
 	}
 }

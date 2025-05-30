@@ -16,7 +16,25 @@ Developed for testing SSL/TLS configuration of services in docker-compose.
 Basic usage is to invoke the tool with a list of hosts:
 
 ```bash
-$ makecerts --host host1 --host host2 --host host3
+$ makecerts certificate host1 host2 host3
+```
+
+Multiple types of operation can be invoked:
+
+```bash
+$ makecerts certificate host1 -- sign host2 -- request host3
+```
+
+Operations can also be supplied via stdin, in which case the format follows the
+command line format but is line delimited - i.e.
+
+```bash
+$ makecerts << EOF
+certificate
+host1
+host2
+host3
+EOF
 ```
 
 Output will be similar to the following:
@@ -126,6 +144,8 @@ $ makecerts --sign host1 --sign host2
 ```
 
 The usual rules of certificate generation apply: if a CA does not exist then one will be created to sign the requests.
+Certificate requests will have all extensions naively respected - this is a command line testing utility not a full
+policy engine.
 
 ## Hacking
 

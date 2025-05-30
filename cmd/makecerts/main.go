@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/wrouesnel/makecerts/internal/entrypoint"
 	"os"
 )
 
@@ -15,7 +16,7 @@ func main() {
 		os.Exit(1)
 	}()
 
-	if err := realMain(); err != nil {
+	if err := entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin); err != nil {
 		os.Exit(1) //nolint:gocritic
 	}
 	os.Exit(0)

@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/bits"
 	"os"
 	"os/exec"
@@ -33,6 +32,9 @@ import (
 
 	"github.com/integralist/go-findroot/find"
 	"github.com/pkg/errors"
+
+	"github.com/samber/lo"
+	"golang.org/x/mod/modfile"
 )
 
 var (
@@ -48,6 +50,40 @@ var curDir = func() string {
 	return name
 }()
 
+//nolint:revive,stylecheck
+const (
+	OS_READ        = 04
+	OS_WRITE       = 02
+	OS_EX          = 01
+	OS_USER_SHIFT  = 6
+	OS_GROUP_SHIFT = 3
+	OS_OTH_SHIFT   = 0
+
+	OS_USER_R   = OS_READ << OS_USER_SHIFT
+	OS_USER_W   = OS_WRITE << OS_USER_SHIFT
+	OS_USER_X   = OS_EX << OS_USER_SHIFT
+	OS_USER_RW  = OS_USER_R | OS_USER_W
+	OS_USER_RWX = OS_USER_RW | OS_USER_X
+
+	OS_GROUP_R   = OS_READ << OS_GROUP_SHIFT
+	OS_GROUP_W   = OS_WRITE << OS_GROUP_SHIFT
+	OS_GROUP_X   = OS_EX << OS_GROUP_SHIFT
+	OS_GROUP_RW  = OS_GROUP_R | OS_GROUP_W
+	OS_GROUP_RWX = OS_GROUP_RW | OS_GROUP_X
+
+	OS_OTH_R   = OS_READ << OS_OTH_SHIFT
+	OS_OTH_W   = OS_WRITE << OS_OTH_SHIFT
+	OS_OTH_X   = OS_EX << OS_OTH_SHIFT
+	OS_OTH_RW  = OS_OTH_R | OS_OTH_W
+	OS_OTH_RWX = OS_OTH_RW | OS_OTH_X
+
+	OS_ALL_R   = OS_USER_R | OS_GROUP_R | OS_OTH_R
+	OS_ALL_W   = OS_USER_W | OS_GROUP_W | OS_OTH_W
+	OS_ALL_X   = OS_USER_X | OS_GROUP_X | OS_OTH_X
+	OS_ALL_RW  = OS_ALL_R | OS_ALL_W
+	OS_ALL_RWX = OS_ALL_RW | OS_ALL_X
+)
+
 const (
 	constCoverageDir = ".coverage"
 	constToolBinDir  = ".bin"
@@ -56,6 +92,7 @@ const (
 	constReleaseDir  = "release"
 	constCmdDir      = "cmd"
 	constCoverFile   = ".cover.out"
+	constJunitDir    = ".junit"
 )
 
 const (
@@ -71,10 +108,28 @@ func normalizePath(name string) string {
 
 // binRootName is set to the name of the directory by default.
 var binRootName = func() string {
-	return must(find.Repo()).Path
+	repo, err := find.Repo()
+	if err != nil {
+		// Couldn't find a repo. Look for mage.go instead which should be at
+		// the root of the source tree.
+		currentDir := must(filepath.Abs(must(os.Getwd())))
+		for {
+			if _, err := os.Stat(filepath.Join(currentDir, "mage.go")); os.IsNotExist(err) {
+				currentDir = filepath.Dir(currentDir)
+			} else {
+				return currentDir
+			}
+			if strings.HasSuffix(currentDir, strconv.QuoteRune(os.PathSeparator)) {
+				panic("Could not locate repo root nor mage.go")
+			}
+		}
+	}
+	return repo.Path
 }()
 
 // dockerImageName is set to the name of the directory by default.
+//
+//nolint:unused,varcheck
 var dockerImageName = func() string {
 	return binRootName
 }()
@@ -85,8 +140,9 @@ var gitHookDir = normalizePath(path.Join(curDir, constGitHookDir))
 var binDir = normalizePath(path.Join(curDir, constBinDir))
 var releaseDir = normalizePath(path.Join(curDir, constReleaseDir))
 var cmdDir = normalizePath(path.Join(curDir, constCmdDir))
+var junitDir = normalizePath(path.Join(curDir, constJunitDir))
 
-var outputDirs = []string{binDir, releaseDir, coverageDir}
+var outputDirs = []string{binDir, releaseDir, coverageDir, junitDir}
 
 //nolint:unused,varcheck
 var containerName = func() string {
@@ -158,8 +214,17 @@ var productName = func() string {
 // Source files.
 var goSrc []string
 var goDirs []string
-var goPkgs []string
+
+// Due to go:generate and asset embedding interaction, this is now an on demand function
+var goPkgs func() []string
 var goCmds []string
+
+// Function to calculate the version symbol
+var versionSymbol = func() string {
+	gomodBytes := lo.Must(os.ReadFile("go.mod"))
+	parsedGoMod := lo.Must(modfile.ParseLax("go.mod", gomodBytes, nil))
+	return parsedGoMod.Module.Mod.Path + "/version.Version"
+}
 
 var version = func() string {
 	if v := os.Getenv("VERSION"); v != "" {
@@ -168,6 +233,12 @@ var version = func() string {
 	out, _ := sh.Output("git", "describe", "--dirty")
 
 	if out == "" {
+		// Try and at least describe the git commit.
+		out, _ = sh.Output("git", "describe", "--dirty", "--always")
+		if out != "" {
+			//nolint:perfsprint
+			return fmt.Sprintf("v0.0.0-0-%s", out)
+		}
 		return "v0.0.0"
 	}
 
@@ -261,7 +332,7 @@ func waitResults(m map[string]func() error) func() error {
 	return func() error {
 		buildError := false
 
-		for i := 0; i < len(m); i++ {
+		for range len(m) {
 			result := <-resultQueue
 			if result.v != nil {
 				buildError = true
@@ -363,11 +434,11 @@ func init() {
 			}
 		}
 		return results
-	}()
+	}
 	goCmds = func() []string {
 		results := []string{}
 
-		finfos, err := ioutil.ReadDir(cmdDir)
+		finfos, err := os.ReadDir(cmdDir)
 		if err != nil {
 			panic(err)
 		}
@@ -379,7 +450,7 @@ func init() {
 
 	// Ensure output dirs exist
 	for _, dir := range outputDirs {
-		panicOnError(os.MkdirAll(dir, os.FileMode(0777)))
+		panicOnError(os.MkdirAll(dir, os.FileMode(OS_ALL_RWX)))
 	}
 }
 
@@ -434,11 +505,22 @@ func Tools() (err error) {
 		}
 	}()
 
-	toolBuild := func(toolType string, tools ...string) error {
+	toolBuild := func(toolType string, tools ...[]string) error {
 		toolTargets := []interface{}{}
 		for _, toolImport := range tools {
-			localToolImport := toolImport
-			f := func() error { return sh.Run("go", "install", "-v", localToolImport) }
+			binName := toolImport[0]
+			localToolImport := toolImport[1]
+
+			if binName != "" {
+				if _, err := os.Stat(path.Join(toolsBinDir, binName)); err == nil {
+					// Skip named binary which we already have
+					continue
+				}
+			}
+
+			f := func() error {
+				return sh.Run("go", "install", "-v", localToolImport)
+			}
 			toolTargets = append(toolTargets, f)
 		}
 
@@ -451,17 +533,18 @@ func Tools() (err error) {
 
 	// golangci-lint don't want to support if it's not a binary release, so
 	// don't go-install.
-
-	if berr := toolBuild("static", "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.48.0", "github.com/wadey/gocovmerge@latest"); berr != nil {
+	if berr := toolBuild("static", []string{"", "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4"},
+		[]string{"gocovmerge", "github.com/wadey/gocovmerge@latest"}); berr != nil {
 		return berr
 	}
 
 	return nil
 }
 
+//nolint:perfsprint
 func lintArgs(args ...string) []string {
-	returnedArgs := []string{"-j", fmt.Sprintf("%v", concurrency), fmt.Sprintf(
-		"--deadline=%s", linterDeadline.String())}
+	returnedArgs := []string{"-j", strconv.Itoa(concurrency), fmt.Sprintf(
+		"--timeout=%s", linterDeadline.String())}
 	returnedArgs = append(returnedArgs, args...)
 	return returnedArgs
 }
@@ -535,15 +618,16 @@ func LintersBisect() error {
 	// Annoyingly, we have to override .golangci.yml to allow us to pick linters
 	// one by one.
 	golangCi := make(map[string]interface{})
-	_ = yaml.Unmarshal(must(ioutil.ReadFile(".golangci.yml")), golangCi)
+	_ = yaml.Unmarshal(must(os.ReadFile(".golangci.yml")), golangCi)
 	delete(golangCi, "linters")
-	tempConfig, err := ioutil.TempFile("", ".golangci.*.yml")
+	tempConfig, err := os.CreateTemp("", ".golangci.*.yml")
 	if err != nil {
 		return errors.Wrap(err, "LintersBisect: TempFile failed")
 	}
 	_ = must(tempConfig.Write(must(yaml.Marshal(golangCi))))
 	defer os.Remove(tempConfig.Name())
 
+	//nolint:perfsprint
 	for _, linter := range linters {
 		extraArgs := lintArgs("run",
 			fmt.Sprintf("--config=%s", tempConfig.Name()),
@@ -569,7 +653,7 @@ func LintersBisect() error {
 // fmt runs golangci-lint with the formatter options.
 func formattingLinter(doFixes bool) error {
 	mg.Deps(Tools)
-	args := []string{"run", "--no-config", "--disable-all", "--enable=gofmt", "--enable=goimports", "--enable=godot"}
+	args := []string{"run", "--no-config", "--disable-all", "--enable=gofmt", "--enable=goimports", "--enable=godot", "--enable=tagalign"}
 	if doFixes {
 		args = append(args, "--fix")
 	}
@@ -588,7 +672,7 @@ func Fmt() error {
 
 func listCoverageFiles() ([]string, error) {
 	result := []string{}
-	finfos, derr := ioutil.ReadDir(coverageDir)
+	finfos, derr := os.ReadDir(coverageDir)
 	if derr != nil {
 		return result, derr
 	}
@@ -601,9 +685,10 @@ func listCoverageFiles() ([]string, error) {
 // Test run test suite.
 func Test() error {
 	mg.Deps(Tools)
+	mg.Deps(GoGenerate)
 
 	// Ensure coverage directory exists
-	if err := os.MkdirAll(coverageDir, os.FileMode(0777)); err != nil {
+	if err := os.MkdirAll(coverageDir, os.FileMode(OS_ALL_RWX)); err != nil {
 		return err
 	}
 
@@ -620,7 +705,8 @@ func Test() error {
 
 	// Run tests
 	//coverProfiles := []string{}
-	for _, pkg := range goPkgs {
+	//nolint:perfsprint
+	for _, pkg := range goPkgs() {
 		coverProfile := path.Join(coverageDir,
 			fmt.Sprintf("%s%s", strings.ReplaceAll(pkg, "/", "-"), ".out"))
 		testErr := sh.Run("go", "test", "-v", "-covermode", "count", fmt.Sprintf("-coverprofile=%s", coverProfile),
@@ -646,7 +732,7 @@ func Coverage() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(constCoverFile, []byte(mergedCoverage), os.FileMode(0777))
+	return os.WriteFile(constCoverFile, []byte(mergedCoverage), os.FileMode(OS_ALL_RWX))
 }
 
 // All runs a full suite suitable for CI
@@ -670,12 +756,17 @@ func GithubReleaseMatrix() error {
 	return nil
 }
 
+// GoGenerate runs go generate.
+func GoGenerate() error {
+	return sh.Run("go", "generate", "./...")
+}
+
 func makeBuilder(cmd string, platform Platform) func() error {
 	f := func() error {
 		cmdSrc := fmt.Sprintf("./%s/%s", must(filepath.Rel(curDir, cmdDir)), cmd)
 
 		Log("Make platform binary directory:", platform.PlatformDir())
-		if err := os.MkdirAll(platform.PlatformDir(), os.FileMode(0777)); err != nil {
+		if err := os.MkdirAll(platform.PlatformDir(), os.FileMode(OS_ALL_RWX)); err != nil {
 			return errors.Wrapf(err, "error making directory: cmd: %s", cmd)
 		}
 
@@ -692,7 +783,7 @@ func makeBuilder(cmd string, platform Platform) func() error {
 
 		fmt.Println("Building", platform.PlatformBin(cmd))
 		return sh.RunWith(map[string]string{"CGO_ENABLED": "0", "GOOS": platform.OS, "GOARCH": platform.Arch},
-			"go", "build", "-a", "-ldflags", fmt.Sprintf("-buildid='' -extldflags '-static' -X main.Version=%s", version),
+			"go", "build", "-a", "-ldflags", fmt.Sprintf("-buildid='' -extldflags '-static' -X %s=%s", versionSymbol(), version),
 			"-trimpath", "-o", platform.PlatformBin(cmd), cmdSrc)
 	}
 	return f
@@ -742,6 +833,8 @@ func Binary() error {
 //
 //nolint:gocritic
 func doReleaseBin(OSArch string) func() error {
+	mg.Deps(GoGenerate)
+
 	platform, ok := platformsLookup[OSArch]
 	if !ok {
 		return func() error { return errors.Wrapf(errPlatformNotSupported, "ReleaseBin: %s", OSArch) }
@@ -866,12 +959,18 @@ func Clean() error {
 //
 //nolint:unparam
 func Debug() error {
+	mg.Deps(GoGenerate)
+
 	fmt.Println("Source Files:", goSrc)
-	fmt.Println("Packages:", goPkgs)
+	fmt.Println("Packages:", goPkgs())
 	fmt.Println("Directories:", goDirs)
 	fmt.Println("Command Paths:", goCmds)
 	fmt.Println("Output Dirs:", outputDirs)
 	fmt.Println("PATH:", os.Getenv("PATH"))
+
+	fmt.Println("Version:", version)
+	fmt.Println("Version short:", versionShort)
+	fmt.Println("Version symbol:", versionSymbol())
 	return nil
 }
 
@@ -879,7 +978,7 @@ func Debug() error {
 func Autogen() error {
 	fmt.Println("Installing git hooks in local repository...")
 
-	for _, fname := range must(ioutil.ReadDir(gitHookDir)) {
+	for _, fname := range must(os.ReadDir(gitHookDir)) {
 		hookName := fname.Name()
 		if !fname.IsDir() {
 			continue
@@ -889,7 +988,7 @@ func Autogen() error {
 		repoHookPath := path.Join(gitHookDir, fname.Name())
 
 		scripts := []string{}
-		for _, scriptName := range must(ioutil.ReadDir(repoHookPath)) {
+		for _, scriptName := range must(os.ReadDir(repoHookPath)) {
 			if scriptName.IsDir() {
 				continue
 			}
@@ -898,7 +997,7 @@ func Autogen() error {
 
 			scripts = append(scripts, relHookPath)
 
-			data, err := ioutil.ReadFile(gitHookPath)
+			data, err := os.ReadFile(gitHookPath)
 			if err != nil {
 				data = []byte("#!/bin/bash\n")
 			}
@@ -949,8 +1048,8 @@ func Autogen() error {
 			updatedScript = append(updatedScript, scriptPackage...)
 			updatedScript = append(updatedScript, splitHook[tailAt:]...)
 
-			err = ioutil.WriteFile(gitHookPath, []byte(strings.Join(updatedScript, "\n")),
-				os.FileMode(0755))
+			err = os.WriteFile(gitHookPath, []byte(strings.Join(updatedScript, "\n")),
+				os.FileMode(OS_ALL_RW|OS_USER_X))
 			if err != nil {
 				return err
 			}

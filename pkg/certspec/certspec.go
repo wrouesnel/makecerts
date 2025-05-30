@@ -1,0 +1,115 @@
+package certspec
+
+import (
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"github.com/samber/lo"
+	"github.com/wrouesnel/certutils"
+	"net/url"
+	"strconv"
+	"strings"
+)
+
+const usage = "usage"
+const extusage = "extusage"
+const ca = "ca"
+
+const cert = "cert"
+const key = "key"
+const csr = "csr"
+
+var keyUsageMap = map[string]string{}
+var extKeyUsageMap = map[string]string{}
+
+var (
+	ErrUnknownParameter = errors.New("unknown parameter")
+)
+
+func init() {
+	// Setup the lower case lookup tables
+	for _, value := range certutils.ListKeyUsage() {
+		keyUsageMap[strings.ToLower(value)] = value
+	}
+
+	for _, value := range certutils.ListExtKeyUsage() {
+		extKeyUsageMap[strings.ToLower(value)] = value
+	}
+}
+
+type CertSpecification struct {
+	Hosts []string
+
+	KeyUsage    x509.KeyUsage
+	ExtKeyUsage []x509.ExtKeyUsage
+	IsCa        bool
+
+	// Certificate file is the name of the certificate
+	CertificateFile string
+	// KeyFile is the name of the key file
+	KeyFile string
+	// CSRFile is the name of the CSR
+	CSRFile string
+}
+
+func (c *CertSpecification) MarshalText() (text []byte, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *CertSpecification) UnmarshalText(text []byte) error {
+	line := string(text)
+	sans, options, _ := strings.Cut(line, "?")
+
+	c.Hosts = make([]string, 0)
+	c.KeyUsage = 0
+	c.ExtKeyUsage = make([]x509.ExtKeyUsage, 0)
+	c.IsCa = false
+
+	for _, san := range strings.Split(sans, ",") {
+		c.Hosts = append(c.Hosts, san)
+	}
+
+	query, err := url.ParseQuery(strings.ToLower(options))
+	if err != nil {
+		return err
+	}
+
+	if query.Has(usage) {
+		for _, value := range query[usage] {
+			for _, split := range strings.Split(value, ",") {
+				lookup, found := keyUsageMap[split]
+				if !found {
+					return errors.Join(ErrUnknownParameter, fmt.Errorf("key usage %s unrecognized", lookup))
+				}
+				c.KeyUsage |= lo.Must(certutils.ParseKeyUsage(lookup))
+			}
+		}
+	}
+
+	if query.Has(extusage) {
+		for _, value := range query[extusage] {
+			for _, joined := range strings.Split(value, ",") {
+				lookup, found := extKeyUsageMap[joined]
+				if !found {
+					return errors.Join(ErrUnknownParameter, fmt.Errorf("extended key usage %s unrecognized", value))
+				}
+				c.ExtKeyUsage = append(c.ExtKeyUsage, lo.Must(certutils.ParseExtKeyUsage(lookup)))
+			}
+		}
+	}
+
+	if query.Has(ca) {
+		value := query.Get(ca)
+		c.IsCa, err = strconv.ParseBool(value)
+		if err != nil {
+			return errors.Join(ErrUnknownParameter, fmt.Errorf("ca parameter %s unrecognized", value))
+		}
+	}
+
+	c.CertificateFile = query.Get(cert)
+	c.KeyFile = query.Get(key)
+	c.CSRFile = query.Get(csr)
+
+	return nil
+}
