@@ -101,6 +101,7 @@ type CLIConfig struct {
 	} `embed:"" prefix:"log-"`
 
 	Defaults       bool                             `default:"true"                                                        help:"Apply default certificate extensions if none specified"     negatable:""`
+	Overwrite      bool                             `default:"false" help:"Overwrite existing certificate and keys" negatable:""`
 	PrivateKeyType certutils.PrivateKeyType         `default:"ecp256"                                                      enum:"${privatekeytypes}"                                         help:"Private Key Type (${privatekeytypes})"`
 	FilenameConfig models.CertificateFilenameConfig `embed:""`
 	Ca             ca.CaConfig                      `embed:""                                                              prefix:"ca-"`

@@ -144,19 +144,19 @@ func MakeCerts(ctx context.Context) error {
 	}
 
 	if len(ops[CertOperationsRequest]) > 0 {
-		if err := generateRequests(ctx, fs, commonUsages, commonExtUsages, ops[CertOperationsRequest]); err != nil {
+		if err := generateRequests(ctx, fs, commonUsages, commonExtUsages, ops[CertOperationsRequest], CLI.Overwrite); err != nil {
 			return err
 		}
 	}
 
 	if len(ops[CertOperationsCertificate]) > 0 {
-		if err := generateCertificates(ctx, fs, caCert, commonUsages, commonExtUsages, ops[CertOperationsCertificate]); err != nil {
+		if err := generateCertificates(ctx, fs, caCert, commonUsages, commonExtUsages, ops[CertOperationsCertificate], CLI.Overwrite); err != nil {
 			return err
 		}
 	}
 
 	if len(ops[CertOperationsSign]) > 0 {
-		if err := generateSignatures(ctx, fs, caCert, ops[CertOperationsSign]); err != nil {
+		if err := generateSignatures(ctx, fs, caCert, ops[CertOperationsSign], CLI.Overwrite); err != nil {
 			return err
 		}
 	}
@@ -164,7 +164,7 @@ func MakeCerts(ctx context.Context) error {
 	return nil
 }
 
-func generateRequests(ctx context.Context, fs afero.Fs, commonUsage x509.KeyUsage, commonExtUsage []x509.ExtKeyUsage, specs []certspec.CertSpecification) error {
+func generateRequests(ctx context.Context, fs afero.Fs, commonUsage x509.KeyUsage, commonExtUsage []x509.ExtKeyUsage, specs []certspec.CertSpecification, overwrite bool) error {
 	l := zap.L().With(zax.Get(ctx)...)
 	l.Info("Generating requested CSRs")
 	for _, spec := range specs {
@@ -184,6 +184,20 @@ func generateRequests(ctx context.Context, fs afero.Fs, commonUsage x509.KeyUsag
 
 		csrPath := pathlib.NewPath(spec.CSRFile, pathlib.PathWithAfero(fs))
 		keyPath := pathlib.NewPath(spec.KeyFile, pathlib.PathWithAfero(fs))
+
+		if exists, err := csrPath.Exists(); err != nil {
+			return err
+		} else if exists && overwrite == false {
+			l.Info("Skipping CSR generation as CSR file already exists and --overwrite not set")
+			continue
+		}
+
+		if exists, err := keyPath.Exists(); err != nil {
+			return err
+		} else if exists && overwrite == false {
+			l.Info("Skipping certificate generation as key file already exists and --overwrite not set")
+			continue
+		}
 
 		csrPEMbytes, err := certutils.EncodeRequest(csr)
 		if err != nil {
@@ -207,10 +221,35 @@ func generateRequests(ctx context.Context, fs afero.Fs, commonUsage x509.KeyUsag
 	return nil
 }
 
-func generateCertificates(ctx context.Context, fs afero.Fs, caCert *models.X509CertificateAndKey, commonUsage x509.KeyUsage, commonExtUsage []x509.ExtKeyUsage, specs []certspec.CertSpecification) error {
+func generateCertificates(ctx context.Context, fs afero.Fs, caCert *models.X509CertificateAndKey, commonUsage x509.KeyUsage, commonExtUsage []x509.ExtKeyUsage, specs []certspec.CertSpecification, overwrite bool) error {
 	l := zap.L().With(zax.Get(ctx)...)
 	l.Info("Generating requested certificates")
 	for _, spec := range specs {
+		if spec.CertificateFile == "" {
+			spec.CertificateFile = fmt.Sprintf("%s.%s", certificateNameBuilder(CLI.FilenameConfig, spec.Hosts[0]), CLI.FilenameConfig.CertFileExt)
+		}
+
+		if spec.KeyFile == "" {
+			spec.KeyFile = fmt.Sprintf("%s.%s", certificateNameBuilder(CLI.FilenameConfig, spec.Hosts[0]), CLI.FilenameConfig.KeyFileExt)
+		}
+
+		certPath := pathlib.NewPath(spec.CertificateFile, pathlib.PathWithAfero(fs))
+		keyPath := pathlib.NewPath(spec.KeyFile, pathlib.PathWithAfero(fs))
+
+		if exists, err := certPath.Exists(); err != nil {
+			return err
+		} else if exists && overwrite == false {
+			l.Info("Skipping certificate generation as certificate file already exists and --overwrite not set")
+			continue
+		}
+
+		if exists, err := keyPath.Exists(); err != nil {
+			return err
+		} else if exists && overwrite == false {
+			l.Info("Skipping certificate generation as key file already exists and --overwrite not set")
+			continue
+		}
+
 		l.Debug("Generating new CSR for subjects", zap.Strings("subjects", spec.Hosts))
 		csr, key, err := csrFromSpec(ctx, CLI.Ca, commonUsage, commonExtUsage, CLI.PrivateKeyType, spec)
 		if err != nil {
@@ -228,17 +267,6 @@ func generateCertificates(ctx context.Context, fs afero.Fs, caCert *models.X509C
 		if err != nil {
 			return err
 		}
-
-		if spec.CertificateFile == "" {
-			spec.CertificateFile = fmt.Sprintf("%s.%s", certificateNameBuilder(CLI.FilenameConfig, spec.Hosts[0]), CLI.FilenameConfig.CertFileExt)
-		}
-
-		if spec.KeyFile == "" {
-			spec.KeyFile = fmt.Sprintf("%s.%s", certificateNameBuilder(CLI.FilenameConfig, spec.Hosts[0]), CLI.FilenameConfig.KeyFileExt)
-		}
-
-		certPath := pathlib.NewPath(spec.CertificateFile, pathlib.PathWithAfero(fs))
-		keyPath := pathlib.NewPath(spec.KeyFile, pathlib.PathWithAfero(fs))
 
 		certPEMbytes, err := certutils.EncodeCertificates(cert)
 		if err != nil {
@@ -263,7 +291,7 @@ func generateCertificates(ctx context.Context, fs afero.Fs, caCert *models.X509C
 }
 
 // generateSignatures signs the provided certificate specifications.
-func generateSignatures(ctx context.Context, fs afero.Fs, caCert *models.X509CertificateAndKey, specs []certspec.CertSpecification) error {
+func generateSignatures(ctx context.Context, fs afero.Fs, caCert *models.X509CertificateAndKey, specs []certspec.CertSpecification, overwrite bool) error {
 	l := zap.L().With(zax.Get(ctx)...)
 	l.Info("Generating signed certificates")
 	for _, spec := range specs {
@@ -305,17 +333,24 @@ func generateSignatures(ctx context.Context, fs afero.Fs, caCert *models.X509Cer
 			})...)
 			hosts = append(hosts, csr.EmailAddresses...)
 
-			l.Debug("Signing CSR for subjects", zap.Strings("subjects", hosts))
-			cert, err := certutils.SignCertificate(csr, caCert.Cert, caCert.Key, signingParams)
-			if err != nil {
-				return err
-			}
-
 			if spec.CertificateFile == "" {
 				spec.CertificateFile = fmt.Sprintf("%s.%s", certificateNameBuilder(CLI.FilenameConfig, spec.Hosts[0]), CLI.FilenameConfig.CertFileExt)
 			}
 
 			certPath := pathlib.NewPath(spec.CertificateFile, pathlib.PathWithAfero(fs))
+
+			if exists, err := certPath.Exists(); err != nil {
+				return err
+			} else if exists && overwrite == false {
+				l.Info("Skipping signature as certificate already exists and --overwrite not set")
+				continue
+			}
+
+			l.Debug("Signing CSR for subjects", zap.Strings("subjects", hosts))
+			cert, err := certutils.SignCertificate(csr, caCert.Cert, caCert.Key, signingParams)
+			if err != nil {
+				return err
+			}
 
 			certPEMbytes, err := certutils.EncodeCertificates(cert)
 			if err != nil {
