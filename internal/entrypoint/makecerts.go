@@ -31,7 +31,7 @@ const PrivatePermissions = os.FileMode(0600)
 var ErrCertificateSpecification = errors.New("Invalid certificate specifications")
 var ErrCertGeneration = errors.New("error generating certificate")
 
-// ENUM(certificate,sign,request).
+// ENUM(certificate,sign,request,root-ca).
 type CertOperations string
 
 // MakeCerts implements the makcerts command.
@@ -91,12 +91,17 @@ func MakeCerts(ctx context.Context) error {
 				l.Error("Invalid certificate operation", zap.String("operation", command))
 				return err
 			}
+			// Special case the root-ca operation.
+			if currentOp == CertOperationsRootCa {
+				ops[currentOp] = append(ops[currentOp], certspec.CertSpecification{})
+				currentOp = ""
+			}
 			return nil
 		}
 
 		spec := certspec.CertSpecification{}
 		if err := spec.UnmarshalText([]byte(command)); err != nil {
-			l.Error("Invalid specificaton", zap.String("line", command), zap.String("error", err.Error()))
+			l.Error("Invalid specification", zap.String("line", command), zap.String("error", err.Error()))
 			commandErr = ErrCertificateSpecification
 		}
 		ops[currentOp] = append(ops[currentOp], spec)
@@ -111,7 +116,7 @@ func MakeCerts(ctx context.Context) error {
 		zap.Int("signatures", len(ops[CertOperationsSign])), zap.Int("csrs", len(ops[CertOperationsRequest])))
 
 	var caCert *models.X509CertificateAndKey
-	if len(ops[CertOperationsCertificate]) > 0 || len(ops[CertOperationsSign]) > 0 {
+	if len(ops[CertOperationsCertificate]) > 0 || len(ops[CertOperationsSign]) > 0 || len(ops[CertOperationsRootCa]) > 0 {
 		l.Debug("Handling CA certificate")
 		caCert, err = ca.HandleCACertificate(fs, CLI.FilenameConfig, CLI.Ca, CLI.CaMode, CLI.PrivateKeyType)
 		if err != nil {

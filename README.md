@@ -41,6 +41,13 @@ This generates a CA certificate for localhost, and a number of certificates with
 The CommonName is set to the first name provided, additional names can be provided separated by commas to add 
 SANs. SAN names are auto-recognized as hostnames, IP addresses or emails - e.g.
 
+The special command `ca` can be used when you want to simply generate a CA in place for later use  without generating 
+any certificates. This command takes no options, and multiple uses will be ignored.
+
+```bash
+$ makecerts ca
+```
+
 ### Certificate Options
 
 When generating certificates or CSRs, a number of options can be specified in URL-encoded syntax format:

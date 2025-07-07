@@ -19,6 +19,8 @@ const (
 	CertOperationsSign CertOperations = "sign"
 	// CertOperationsRequest is a CertOperations of type request.
 	CertOperationsRequest CertOperations = "request"
+	// CertOperationsRootCa is a CertOperations of type root-ca.
+	CertOperationsRootCa CertOperations = "root-ca"
 )
 
 var ErrInvalidCertOperations = errors.New("not a valid CertOperations")
@@ -39,6 +41,7 @@ var _CertOperationsValue = map[string]CertOperations{
 	"certificate": CertOperationsCertificate,
 	"sign":        CertOperationsSign,
 	"request":     CertOperationsRequest,
+	"root-ca":     CertOperationsRootCa,
 }
 
 // ParseCertOperations attempts to convert a string to a CertOperations.
