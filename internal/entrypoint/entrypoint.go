@@ -36,7 +36,8 @@ const longHelp = `
 
 <commands> is a list of commands. 
 
-A command is one of certificate, request or sign followed by a list of <spec>s.
+A command is one of certificate, request, sign followed by a list of <spec>s.
+The special value root-ca may be given to simply generate a new root-ca.
 
 Multiple commands can be issued, separated by "--" to start a new command list.
 
@@ -110,7 +111,7 @@ type CLIConfig struct {
 	CaMode         ca.CaMode                        `default:"generate"                                                    enum:"${camodes}"                                                 help:"CA certificate mode (${camodes})"`
 	NoStdin        bool                             `help:"Don't read hostnames from stdin"`
 
-	Commands []string `embed:""`
+	Commands []string `arg:"" help:"<certificate|sign|request|root-ca> ..."`
 }
 
 var CLI CLIConfig //nolint:gochecknoglobals
