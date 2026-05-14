@@ -119,6 +119,50 @@ func (s *FunctionalSuite) TestECCertifcateGeneration(c *C) {
 	}
 }
 
+func (s *FunctionalSuite) TestRSACertificateRequestGeneration(c *C) {
+	// Run a basic check
+	dir, err := os.MkdirTemp("", "")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(dir)
+
+	err = os.Chdir(dir)
+	c.Assert(err, IsNil)
+
+	os.Args = []string{"makecerts", "--private-key-type=rsa2048",
+		"request",
+		"example0.com",
+		"example1.com",
+		"example2.com",
+		"example3.com",
+	}
+
+	err = entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin)
+	c.Assert(err, IsNil)
+
+	// Generate a new root CA
+	os.Args = []string{"makecerts", "--private-key-type=rsa2048",
+		"--ca-common-name=rootCA",
+		"root-ca",
+	}
+
+	err = entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin)
+	c.Assert(err, IsNil)
+
+	// Use the root CA to sign the requests
+	// Generate a new root CA
+	os.Args = []string{"makecerts", "--private-key-type=rsa2048",
+		"--ca-common-name=rootCA",
+		"sign",
+		"example0.com",
+		"example1.com",
+		"example2.com",
+		"example3.com",
+	}
+
+	err = entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin)
+	c.Assert(err, IsNil)
+}
+
 func (s *FunctionalSuite) TestNameEscape(c *C) {
 	names := []string{
 		"will-desktop",
