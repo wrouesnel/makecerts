@@ -1,6 +1,6 @@
 module github.com/wrouesnel/makecerts
 
-go 1.24.3
+go 1.26.1
 
 require (
 	github.com/alecthomas/kong v1.11.0

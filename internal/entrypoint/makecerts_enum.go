@@ -21,6 +21,8 @@ const (
 	CertOperationsRequest CertOperations = "request"
 	// CertOperationsRootCa is a CertOperations of type root-ca.
 	CertOperationsRootCa CertOperations = "root-ca"
+	// CertOperationsPrintFilename is a CertOperations of type print-filename.
+	CertOperationsPrintFilename CertOperations = "print-filename"
 )
 
 var ErrInvalidCertOperations = errors.New("not a valid CertOperations")
@@ -38,10 +40,11 @@ func (x CertOperations) IsValid() bool {
 }
 
 var _CertOperationsValue = map[string]CertOperations{
-	"certificate": CertOperationsCertificate,
-	"sign":        CertOperationsSign,
-	"request":     CertOperationsRequest,
-	"root-ca":     CertOperationsRootCa,
+	"certificate":    CertOperationsCertificate,
+	"sign":           CertOperationsSign,
+	"request":        CertOperationsRequest,
+	"root-ca":        CertOperationsRootCa,
+	"print-filename": CertOperationsPrintFilename,
 }
 
 // ParseCertOperations attempts to convert a string to a CertOperations.

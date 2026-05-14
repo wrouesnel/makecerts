@@ -19,7 +19,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.21
+          go-version: 1.26
       - name: Check style
         run: go run mage.go style
 
@@ -27,11 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.21
+          go-version: 1.26
       - name: Lint
         run: go run mage.go lint
 
@@ -39,11 +39,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.21
+          go-version: 1.26
       - name: Test
         run: go run mage.go test
       - name: Merge Coverage Files
@@ -57,11 +57,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.21
+          go-version: 1.26
       - name: Build
         run: go run mage.go binary
 
