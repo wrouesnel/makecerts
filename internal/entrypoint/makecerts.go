@@ -31,10 +31,12 @@ const PrivatePermissions = os.FileMode(0600)
 var ErrCertificateSpecification = errors.New("Invalid certificate specifications")
 var ErrCertGeneration = errors.New("error generating certificate")
 
-// ENUM(certificate,sign,request,root-ca).
+// ENUM(certificate,sign,request,root-ca,print-filename).
 type CertOperations string
 
-// MakeCerts implements the makcerts command.
+// MakeCerts implements the makecerts command.
+//
+//nolint:gocyclo
 func MakeCerts(ctx context.Context) error {
 	l := zap.L().With(zax.Get(ctx)...)
 	fs := afero.NewOsFs()
@@ -158,6 +160,16 @@ func MakeCerts(ctx context.Context) error {
 	if len(ops[CertOperationsSign]) > 0 {
 		if err := generateSignatures(ctx, fs, caCert, ops[CertOperationsSign], CLI.Overwrite); err != nil {
 			return err
+		}
+	}
+
+	if len(ops[CertOperationsPrintFilename]) > 0 {
+		for _, name := range ops[CertOperationsPrintFilename] {
+			for _, host := range name.Hosts {
+				filename := certutils.CommonNameToFileName(host)
+				_, _ = ctxstdio.StdOut(ctx).Write([]byte(filename))
+				_, _ = ctxstdio.StdOut(ctx).Write([]byte("\n"))
+			}
 		}
 	}
 

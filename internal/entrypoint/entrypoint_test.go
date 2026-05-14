@@ -118,3 +118,16 @@ func (s *FunctionalSuite) TestECCertifcateGeneration(c *C) {
 		c.Assert(err, IsNil)
 	}
 }
+
+func (s *FunctionalSuite) TestNameEscape(c *C) {
+	names := []string{
+		"will-desktop",
+		"will-desktop.local",
+	}
+
+	for _, name := range names {
+		os.Args = []string{"makecerts", "print-filename", name}
+		err := entrypoint.Entrypoint(os.Stdout, os.Stderr, os.Stdin)
+		c.Assert(err, IsNil)
+	}
+}
